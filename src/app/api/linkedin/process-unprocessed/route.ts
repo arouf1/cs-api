@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLinkedInProfiles, updateLinkedInProfileWithAI, getLinkedInProfile } from "@/lib/linkedin/linkedin-storage";
-import { StructuredLinkedInProfile } from "@/lib/linkedin/linkedin-storage";
+import { type StructuredLinkedInProfile } from "@/lib/linkedin";
 
 // Import AI processing function
 async function parseLinkedInProfile(rawData: any): Promise<StructuredLinkedInProfile> {
