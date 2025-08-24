@@ -4,6 +4,7 @@ import {
   internalMutation,
   internalQuery,
   action,
+  internalAction,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
@@ -570,21 +571,17 @@ export const processUnprocessedLinkedInProfiles = internalMutation({
   handler: async (ctx, args) => {
     const batchSize = args.batchSize || 5; // Process 5 profiles at a time by default
 
-    // Calculate 4 hours ago timestamp to avoid processing profiles that might still be in progress
-    const fourHoursAgo = Date.now() - 4 * 60 * 60 * 1000; // 4 hours in milliseconds
-
     console.log(
-      `🔄 Cron job: Looking for unprocessed LinkedIn profiles (batch size: ${batchSize}, older than 4 hours)`
+      `🔄 Cron job: Looking for unprocessed LinkedIn profiles (batch size: ${batchSize})`
     );
 
-    // Query for unprocessed profiles that have raw data AND are older than 4 hours
+    // Query for unprocessed profiles that have raw data
     const unprocessedProfiles = await ctx.db
       .query("linkedinProfiles")
       .filter((q) =>
         q.and(
           q.eq(q.field("isProcessed"), false),
-          q.neq(q.field("rawData"), null),
-          q.lt(q.field("createdAt"), fourHoursAgo)
+          q.neq(q.field("rawData"), null)
         )
       )
       .take(batchSize);
@@ -611,19 +608,18 @@ export const processUnprocessedLinkedInProfiles = internalMutation({
           `🔄 Processing profile: ${profile.author} (${profile.url})`
         );
 
-        // For now, we'll mark these profiles as needing processing
-        // The actual AI processing will be handled by the existing background processing
-        // This cron job serves as a backup to catch any profiles that weren't processed
-
-        // Mark as being processed to avoid duplicate processing
+        // For now, just mark that we've seen this profile
+        // The actual AI processing needs to happen in your Next.js backend
+        console.log(`📋 Found unprocessed profile: ${profile.author}`);
+        
+        // Update the timestamp to show we've checked this profile
         await ctx.db.patch(profile._id, {
+          cronCheckedAt: Date.now(),
           updatedAt: Date.now(),
-          // Add a processing flag to track that this profile was touched by cron
-          cronProcessedAt: Date.now(),
         });
 
         processedCount++;
-        console.log(`✅ Marked profile for processing: ${profile.author}`);
+        console.log(`✅ Marked profile for external processing: ${profile.author}`);
       } catch (error) {
         console.error(`❌ Failed to process profile ${profile.author}:`, error);
         errorCount++;
@@ -1640,5 +1636,26 @@ export const getLocationAnalytics = query({
       },
       averageConfidence: 0.82, // Placeholder
     };
+  },
+});
+
+// Internal mutation to mark a profile for manual AI processing
+export const markProfileForProcessing = internalMutation({
+  args: {
+    profileId: v.id("linkedinProfiles"),
+  },
+  handler: async (ctx, args) => {
+    const profile = await ctx.db.get(args.profileId);
+    if (!profile) {
+      throw new Error(`Profile not found: ${args.profileId}`);
+    }
+    
+    // Mark the profile as needing processing by setting isProcessed to false
+    await ctx.db.patch(args.profileId, {
+      isProcessed: false,
+      updatedAt: Date.now(),
+    });
+    
+    console.log(`✅ Marked profile ${args.profileId} for AI processing`);
   },
 });

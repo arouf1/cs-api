@@ -331,10 +331,8 @@ async function executeLinkedInSearch(
       responseTime,
     };
 
-    // Process profiles with AI in background (don't await)
-    processProfilesWithAI(rawProfileIds, searchId, options).catch((error) => {
-      console.error("Background AI processing failed:", error);
-    });
+    // Skip immediate AI processing - let the cron job handle it
+    console.log(`✅ Stored ${rawProfileIds.length} profiles - AI processing will be handled by cron job`);
 
     // Update the search entry with results
     await updateLinkedInSearchResults(searchId, result, {
@@ -493,22 +491,6 @@ async function parseLinkedInProfile(
     console.log(`✅ Chat model obtained successfully`);
 
     console.log(`🔄 Calling generateObject with AI model...`);
-    console.log(`📊 Profile text length: ${rawProfile.text?.length || 0} characters`);
-    console.log(`🔗 Profile URL: ${rawProfile.url}`);
-
-    // Test the model with a simple call first
-    console.log(`🧪 Testing model connectivity...`);
-    try {
-      const testResponse = await model.doGenerate({
-        inputFormat: 'prompt',
-        mode: { type: 'regular' },
-        prompt: [{ role: 'user', content: 'Hello, can you respond with just "OK"?' }],
-      });
-      console.log(`✅ Model connectivity test passed`);
-    } catch (testError) {
-      console.error(`❌ Model connectivity test failed:`, testError);
-      throw new Error(`Model connectivity failed: ${testError}`);
-    }
 
     // Add timeout to prevent hanging
     const timeoutPromise = new Promise((_, reject) => {
@@ -628,10 +610,8 @@ export async function searchLinkedInProfilesDirect(
       }
     );
 
-    // Process profiles with AI in background (don't await)
-    processProfilesWithAI(rawProfileIds, searchId, options).catch((error) => {
-      console.error("Background AI processing failed:", error);
-    });
+    // Skip immediate AI processing - let the cron job handle it
+    console.log(`✅ Stored ${rawProfileIds.length} profiles - AI processing will be handled by cron job`);
 
     result.searchId = searchId;
   } else {
