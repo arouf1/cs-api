@@ -21,7 +21,7 @@ async function parseJobWithAI(rawData: any): Promise<StructuredJob> {
     description: z.string().describe("Job description"),
     jobType: z.string().nullable().describe("Job type (Full-time, Part-time, etc.)"),
     salaryRange: z.string().nullable().describe("Salary range if mentioned"),
-    experienceLevel: z.string().nullable().describe("Required experience level"),
+    experienceLevel: z.enum(["Entry", "Mid", "Senior", "Lead", "Executive"]).nullable().describe("Required experience level"),
     
     requirements: z.object({
       essential: z.array(z.string()).describe("Essential requirements"),
