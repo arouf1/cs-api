@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getLinkedInProfiles, updateLinkedInProfileWithAI, getLinkedInProfile } from "@/lib/linkedin/linkedin-storage";
+import {
+  getLinkedInProfiles,
+  updateLinkedInProfileWithAI,
+  getLinkedInProfile,
+} from "@/lib/linkedin/linkedin-storage";
 import { type StructuredLinkedInProfile } from "@/lib/linkedin";
 
 // Import AI processing function
-async function parseLinkedInProfile(rawData: any): Promise<StructuredLinkedInProfile> {
+async function parseLinkedInProfile(
+  rawData: any
+): Promise<StructuredLinkedInProfile> {
   // We need to do this inline since we can't import the function directly
   const { generateObject } = await import("ai");
   const { getChatModel } = await import("@/lib/external/openrouter");
   const { z } = await import("zod");
-  
+
   // Use a simplified schema for now
   const schema = z.object({
     name: z.string(),
@@ -18,9 +24,9 @@ async function parseLinkedInProfile(rawData: any): Promise<StructuredLinkedInPro
     bio: z.string().nullable(),
     skills: z.array(z.string()),
   });
-  
+
   const model = getChatModel("gpt-4.1-mini");
-  
+
   const result = await generateObject({
     model,
     schema,
@@ -28,7 +34,7 @@ async function parseLinkedInProfile(rawData: any): Promise<StructuredLinkedInPro
     
 Profile text: ${rawData.text}`,
   });
-  
+
   // Return a full structured profile with proper types
   const profile: StructuredLinkedInProfile = {
     name: result.object.name,
@@ -43,7 +49,13 @@ Profile text: ${rawData.text}`,
       careerHighlights: [],
       industryExpertise: [],
       yearsOfExperience: null,
-      seniorityLevel: "Mid" as "Entry" | "Mid" | "Senior" | "Lead" | "Executive" | "C-Level",
+      seniorityLevel: "Mid" as
+        | "Entry"
+        | "Mid"
+        | "Senior"
+        | "Lead"
+        | "Executive"
+        | "C-Level",
       specialisations: [],
     },
     currentJob: {
@@ -65,7 +77,7 @@ Profile text: ${rawData.text}`,
     profileUrl: rawData.url,
     lastUpdated: rawData.publishedDate || new Date().toISOString(),
   };
-  
+
   return profile;
 }
 
@@ -73,11 +85,11 @@ Profile text: ${rawData.text}`,
  * POST /api/linkedin/process-unprocessed
  * Process unprocessed LinkedIn profiles with AI
  * This endpoint can be called by a cron job or manually
- * 
+ *
  * Body:
  * - limit?: number - Maximum number of profiles to process (default: 2)
  * - profileIds?: string[] - Specific profile IDs to process
- * 
+ *
  * Returns:
  * - { success: true, processed: number, failed: number, profiles: [...] }
  */
@@ -94,7 +106,7 @@ export async function POST(request: NextRequest) {
     if (specificProfileIds && specificProfileIds.length > 0) {
       // Process specific profiles
       console.log(`Processing ${specificProfileIds.length} specific profiles`);
-      
+
       for (const profileId of specificProfileIds) {
         const profile = await getLinkedInProfile(profileId);
         if (profile && profile.isProcessed !== "true" && profile.rawData) {
@@ -104,7 +116,7 @@ export async function POST(request: NextRequest) {
     } else {
       // Get unprocessed profiles
       console.log(`Processing up to ${limit} unprocessed profiles`);
-      
+
       const unprocessedProfiles = await getLinkedInProfiles({
         limit,
       });
@@ -132,7 +144,7 @@ export async function POST(request: NextRequest) {
         await updateLinkedInProfileWithAI(profile._id, structuredProfile);
 
         console.log(`✅ Successfully processed: ${structuredProfile.name}`);
-        
+
         processed++;
         results.push({
           profileId: profile._id,
@@ -180,7 +192,7 @@ export async function GET() {
   try {
     // Get all profiles
     const allProfiles = await getLinkedInProfiles({ limit: 1000 });
-    
+
     // Count unprocessed
     const unprocessedCount = allProfiles.filter(
       (p) => !p.isProcessed && p.rawData

@@ -493,7 +493,7 @@ export const saveLinkedInProfile = mutation({
 
     // Profile data
     aiData: v.any(),
-    isProcessed: v.optional(v.boolean()),
+    isProcessed: v.optional(v.union(v.literal("false"), v.literal("pending"), v.literal("true"))),
     rawData: v.optional(v.any()),
     embedding: v.optional(v.array(v.number())),
     embeddingText: v.optional(v.string()),
@@ -557,7 +557,7 @@ export const updateLinkedInProfileWithAI = mutation({
     const { id, ...updateData } = args;
     return await ctx.db.patch(id, {
       ...updateData,
-      isProcessed: true,
+      isProcessed: "true",
       updatedAt: Date.now(),
     });
   },
@@ -616,11 +616,11 @@ export const processUnprocessedLinkedInProfiles = internalMutation({
 
         // Schedule the AI processing action to run
         await ctx.scheduler.runAfter(
-          0, 
+          0,
           internal.functions.processLinkedInProfileWithAI,
           { profileId: profile._id }
         );
-        
+
         processedCount++;
         console.log(`✅ Queued AI processing for: ${profile.author}`);
       } catch (error) {
@@ -674,56 +674,66 @@ export const processLinkedInProfileWithAI = internalAction({
   handler: async (ctx, args) => {
     try {
       console.log(`🤖 Processing LinkedIn profile ${args.profileId} with AI`);
-      
+
       // Get environment variables
       const apiUrl = process.env.CS_API_BASE_URL;
       const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
-      
+
       if (!apiUrl) {
         throw new Error("CS_API_BASE_URL environment variable not set");
       }
-      
+
       if (!bypassSecret) {
-        throw new Error("VERCEL_AUTOMATION_BYPASS_SECRET environment variable not set");
+        throw new Error(
+          "VERCEL_AUTOMATION_BYPASS_SECRET environment variable not set"
+        );
       }
-      
-      console.log(`📡 Calling API at: ${apiUrl}/api/linkedin/process-unprocessed`);
-      
-      const response = await fetch(`${apiUrl}/api/linkedin/process-unprocessed`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-vercel-protection-bypass": bypassSecret,
-        },
-        body: JSON.stringify({
-          profileIds: [args.profileId], // Process just this one profile
-          limit: 1,
-        }),
-      });
-      
+
+      console.log(
+        `📡 Calling API at: ${apiUrl}/api/linkedin/process-unprocessed`
+      );
+
+      const response = await fetch(
+        `${apiUrl}/api/linkedin/process-unprocessed`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-vercel-protection-bypass": bypassSecret,
+          },
+          body: JSON.stringify({
+            profileIds: [args.profileId], // Process just this one profile
+            limit: 1,
+          }),
+        }
+      );
+
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`API call failed: ${response.status} ${response.statusText} - ${errorText}`);
+        throw new Error(
+          `API call failed: ${response.status} ${response.statusText} - ${errorText}`
+        );
       }
-      
+
       const result = await response.json();
-      
+
       if (!result.success) {
         throw new Error(result.error || "Failed to process profile");
       }
-      
-      console.log(`✅ Successfully processed profile via API: ${args.profileId}`);
+
+      console.log(
+        `✅ Successfully processed profile via API: ${args.profileId}`
+      );
       return { success: true, result };
-      
     } catch (error) {
       console.error(`❌ Failed to process profile ${args.profileId}:`, error);
-      
+
       // Mark the profile as having an error
       await ctx.runMutation(internal.functions.markLinkedInProfileError, {
         profileId: args.profileId,
         error: error instanceof Error ? error.message : String(error),
       });
-      
+
       throw error;
     }
   },
@@ -1755,13 +1765,13 @@ export const markProfileForProcessing = internalMutation({
     if (!profile) {
       throw new Error(`Profile not found: ${args.profileId}`);
     }
-    
+
     // Mark the profile as needing processing by setting isProcessed to false
     await ctx.db.patch(args.profileId, {
-      isProcessed: false,
+      isProcessed: "false",
       updatedAt: Date.now(),
     });
-    
+
     console.log(`✅ Marked profile ${args.profileId} for AI processing`);
   },
 });
