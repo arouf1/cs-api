@@ -1086,7 +1086,7 @@ export const findJobByShareLink = query({
       provider: v.string(),
       rawData: v.any(),
       aiData: v.optional(v.any()),
-      isProcessed: v.optional(v.boolean()),
+      isProcessed: v.optional(v.union(v.literal("false"), v.literal("pending"), v.literal("true"))),
       embedding: v.optional(v.array(v.number())),
       embeddingText: v.optional(v.string()),
       jobType: v.optional(v.string()),
@@ -1143,7 +1143,7 @@ export const saveJobResult = mutation({
 
     // Structured job data (AI processed)
     aiData: v.optional(v.any()),
-    isProcessed: v.optional(v.boolean()),
+    isProcessed: v.optional(v.union(v.literal("false"), v.literal("pending"), v.literal("true"))),
 
     // Embeddings
     embedding: v.optional(v.array(v.number())),
@@ -1290,7 +1290,7 @@ export const getJobResults = query({
     experienceLevel: v.optional(v.string()),
     industry: v.optional(v.string()),
     workArrangement: v.optional(v.string()),
-    isProcessed: v.optional(v.boolean()),
+    isProcessed: v.optional(v.union(v.literal("false"), v.literal("pending"), v.literal("true"))),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -1786,21 +1786,23 @@ export const processJobWithAI = internalAction({
   handler: async (ctx, args) => {
     try {
       console.log(`🤖 Processing job ${args.jobId} with AI`);
-      
+
       // Get environment variables
       const apiUrl = process.env.CS_API_BASE_URL;
       const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
-      
+
       if (!apiUrl) {
         throw new Error("CS_API_BASE_URL environment variable not set");
       }
-      
+
       if (!bypassSecret) {
-        throw new Error("VERCEL_AUTOMATION_BYPASS_SECRET environment variable not set");
+        throw new Error(
+          "VERCEL_AUTOMATION_BYPASS_SECRET environment variable not set"
+        );
       }
-      
+
       console.log(`📡 Calling API at: ${apiUrl}/api/jobs/process-unprocessed`);
-      
+
       const response = await fetch(`${apiUrl}/api/jobs/process-unprocessed`, {
         method: "POST",
         headers: {
@@ -1812,30 +1814,31 @@ export const processJobWithAI = internalAction({
           limit: 1,
         }),
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`API call failed: ${response.status} ${response.statusText} - ${errorText}`);
+        throw new Error(
+          `API call failed: ${response.status} ${response.statusText} - ${errorText}`
+        );
       }
-      
+
       const result = await response.json();
-      
+
       if (!result.success) {
         throw new Error(result.error || "Failed to process job");
       }
-      
+
       console.log(`✅ Successfully processed job via API: ${args.jobId}`);
       return { success: true, result };
-      
     } catch (error) {
       console.error(`❌ Failed to process job ${args.jobId}:`, error);
-      
+
       // Mark the job as having an error
       await ctx.runMutation(internal.functions.markJobError, {
         jobId: args.jobId,
         error: error instanceof Error ? error.message : String(error),
       });
-      
+
       throw error;
     }
   },
@@ -1922,9 +1925,7 @@ export const processUnprocessedJobs = internalMutation({
 
     for (const job of unprocessedJobs) {
       try {
-        console.log(
-          `🔄 Processing job: ${job.title} (${job.companyName})`
-        );
+        console.log(`🔄 Processing job: ${job.title} (${job.companyName})`);
 
         // Mark the job as pending before scheduling AI processing
         await ctx.db.patch(job._id, {
@@ -1933,11 +1934,9 @@ export const processUnprocessedJobs = internalMutation({
         });
 
         // Schedule the AI processing action to run
-        await ctx.scheduler.runAfter(
-          0,
-          internal.functions.processJobWithAI,
-          { jobId: job._id }
-        );
+        await ctx.scheduler.runAfter(0, internal.functions.processJobWithAI, {
+          jobId: job._id,
+        });
 
         processedCount++;
         console.log(`✅ Queued AI processing for: ${job.title}`);
@@ -1975,11 +1974,8 @@ export const triggerJobProcessing = mutation({
     args
   ): Promise<{ processed: number; errors: number; message: string }> => {
     // Call the internal mutation
-    return await ctx.runMutation(
-      internal.functions.processUnprocessedJobs,
-      {
-        batchSize: args.batchSize || 50,
-      }
-    );
+    return await ctx.runMutation(internal.functions.processUnprocessedJobs, {
+      batchSize: args.batchSize || 50,
+    });
   },
 });
