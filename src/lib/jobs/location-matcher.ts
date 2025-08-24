@@ -42,72 +42,67 @@ let citiesCache: SerpAPILocation[] | null = null;
 let citiesCacheExpiry: number = 0;
 
 /**
- * Fetches the latest locations from SerpAPI
+ * Searches for locations using SerpAPI's search endpoint
  */
-async function fetchSerpAPILocations(): Promise<SerpAPILocation[]> {
+async function searchSerpAPILocations(
+  query: string,
+  limit: number = 10
+): Promise<SerpAPILocation[]> {
   try {
-    console.log("🌍 Fetching SerpAPI locations...");
-    const response = await fetch("https://serpapi.com/locations.json");
+    console.log(`🔍 Searching SerpAPI locations for: "${query}"`);
+    const encodedQuery = encodeURIComponent(query);
+    const response = await fetch(
+      `https://serpapi.com/locations.json?q=${encodedQuery}&limit=${limit}`
+    );
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch locations: ${response.status}`);
+      throw new Error(`Failed to search locations: ${response.status}`);
     }
 
     const locations: SerpAPILocation[] = await response.json();
-    console.log(`✅ Fetched ${locations.length} locations from SerpAPI`);
+    console.log(`✅ Found ${locations.length} location matches for "${query}"`);
 
     return locations;
   } catch (error) {
-    console.error("❌ Failed to fetch SerpAPI locations:", error);
-    throw new Error("Unable to fetch location data");
+    console.error("❌ Failed to search SerpAPI locations:", error);
+    throw new Error("Unable to search location data");
   }
 }
 
-/**
- * Gets locations with caching
- */
-async function getLocations(): Promise<SerpAPILocation[]> {
-  const now = Date.now();
-
-  if (locationsCache && now < cacheExpiry) {
-    return locationsCache;
-  }
-
-  locationsCache = await fetchSerpAPILocations();
-  cacheExpiry = now + CACHE_DURATION;
-
-  return locationsCache;
-}
+// Simple cache for search results to avoid repeated API calls for same queries
+const searchCache = new Map<
+  string,
+  { results: SerpAPILocation[]; expiry: number }
+>();
+const SEARCH_CACHE_DURATION = 60 * 60 * 1000; // 1 hour for search results
 
 /**
- * Gets cities only with separate caching for better performance
+ * Gets locations with search-based caching
  */
-async function getCities(countryCode?: string): Promise<SerpAPILocation[]> {
+async function getLocationsBySearch(
+  query: string,
+  limit: number = 10
+): Promise<SerpAPILocation[]> {
+  const cacheKey = `${query.toLowerCase()}:${limit}`;
   const now = Date.now();
 
-  if (citiesCache && now < citiesCacheExpiry) {
-    return countryCode
-      ? citiesCache.filter(
-          (loc) => loc.country_code.toLowerCase() === countryCode.toLowerCase()
-        )
-      : citiesCache;
+  // Check cache first
+  const cached = searchCache.get(cacheKey);
+  if (cached && now < cached.expiry) {
+    console.log(`📋 Using cached results for "${query}"`);
+    return cached.results;
   }
 
-  const allLocations = await getLocations();
-  citiesCache = allLocations.filter(
-    (loc) => loc.target_type.toLowerCase() === "city"
-  );
-  citiesCacheExpiry = now + CACHE_DURATION;
+  // Fetch new results
+  const results = await searchSerpAPILocations(query, limit);
 
-  console.log(
-    `🏙️ Cached ${citiesCache.length} cities from ${allLocations.length} total locations`
-  );
+  // Cache the results
+  searchCache.set(cacheKey, {
+    results,
+    expiry: now + SEARCH_CACHE_DURATION,
+  });
 
-  return countryCode
-    ? citiesCache.filter(
-        (loc) => loc.country_code.toLowerCase() === countryCode.toLowerCase()
-      )
-    : citiesCache;
+  return results;
 }
 
 /**
@@ -233,8 +228,7 @@ function calculateSimilarity(str1: string, str2: string): number {
 }
 
 /**
- * Finds the best matching location for a given input with enhanced filtering
- * Always prioritises cities as the target type
+ * Finds the best matching location using SerpAPI's search with intelligent filtering
  */
 export async function findBestLocationMatch(
   locationInput: string,
@@ -242,51 +236,54 @@ export async function findBestLocationMatch(
   options: LocationFilterOptions = {}
 ): Promise<LocationMatch | null> {
   try {
-    // Always prioritise cities and set default options
-    const filterOptions: LocationFilterOptions = {
-      prioritiseCities: true,
-      preferBusinessCentres: true,
-      ...options,
-    };
+    console.log(
+      `🔍 Finding best match for "${locationInput}" in ${countryCode.toUpperCase()}`
+    );
 
-    // First, try to find matches in cities only for better accuracy
-    let locations = await getCities(countryCode);
+    // Use SerpAPI's search to get relevant results
+    const searchResults = await getLocationsBySearch(locationInput, 15);
 
-    if (locations.length === 0) {
-      console.warn(
-        `⚠️ No cities found for country code: ${countryCode}, falling back to all locations`
-      );
-      const allLocations = await getLocations();
-      locations = allLocations.filter(
-        (loc) => loc.country_code.toLowerCase() === countryCode.toLowerCase()
-      );
-    }
-
-    // Apply filtering
-    locations = filterLocations(locations, filterOptions);
-
-    if (locations.length === 0) {
-      console.warn(
-        `⚠️ No locations found after filtering for country code: ${countryCode}`
-      );
+    if (searchResults.length === 0) {
+      console.warn(`⚠️ No search results found for "${locationInput}"`);
       return null;
     }
 
-    console.log(
-      `🔍 Searching ${locations.length} filtered locations in ${countryCode.toUpperCase()}`
+    // Filter by country code first
+    let countryFilteredResults = searchResults.filter(
+      (loc) => loc.country_code.toLowerCase() === countryCode.toLowerCase()
     );
 
-    const input = locationInput.toLowerCase().trim();
-    let bestMatch: SerpAPILocation | null = null;
-    let bestScore = 0;
-    let matchType: "exact" | "partial" | "fuzzy" = "fuzzy";
+    // If no results for the country, try without country filtering as fallback
+    if (countryFilteredResults.length === 0) {
+      console.warn(
+        `⚠️ No results for country ${countryCode}, trying without country filter`
+      );
+      countryFilteredResults = searchResults;
+    }
 
-    for (const location of locations) {
+    // Apply additional filtering options
+    let filteredResults = filterLocations(countryFilteredResults, {
+      prioritiseCities: true,
+      preferBusinessCentres: true,
+      ...options,
+    });
+
+    if (filteredResults.length === 0) {
+      console.warn(
+        `⚠️ No results after filtering, using unfiltered country results`
+      );
+      filteredResults = countryFilteredResults;
+    }
+
+    // Find the best match using simple but effective logic
+    const input = locationInput.toLowerCase().trim();
+
+    for (const location of filteredResults) {
       const name = location.name.toLowerCase();
       const canonicalName = location.canonical_name.toLowerCase();
 
-      // Exact match on name (highest priority)
-      if (name === input) {
+      // Exact match on name (highest confidence)
+      if (name === input || name === input.split(",")[0].trim()) {
         console.log(
           `🎯 Exact match found: ${location.canonical_name} (${location.target_type})`
         );
@@ -297,49 +294,66 @@ export async function findBestLocationMatch(
         };
       }
 
-      // Exact match on canonical name
-      if (canonicalName.includes(input)) {
-        const score = input.length / canonicalName.length;
-        if (score > bestScore) {
-          bestMatch = location;
-          bestScore = score;
-          matchType = "partial";
-        }
+      // Check if the input city name matches the location name
+      const inputParts = input.split(",").map((p) => p.trim());
+      const firstInputPart = inputParts[0];
+
+      if (name === firstInputPart) {
+        console.log(
+          `🎯 City name match found: ${location.canonical_name} (${location.target_type})`
+        );
+        return {
+          location,
+          confidence: 0.95,
+          matchType: "exact",
+        };
       }
 
-      // Fuzzy matching on name
-      const nameScore = calculateSimilarity(name, input);
-      if (nameScore > bestScore && nameScore > 0.6) {
-        bestMatch = location;
-        bestScore = nameScore;
-        matchType = nameScore > 0.9 ? "partial" : "fuzzy";
-      }
-
-      // Fuzzy matching on canonical name parts
-      const canonicalParts = canonicalName.split(",").map((p) => p.trim());
-      for (const part of canonicalParts) {
-        const partScore = calculateSimilarity(part, input);
-        if (partScore > bestScore && partScore > 0.7) {
-          bestMatch = location;
-          bestScore = partScore;
-          matchType = partScore > 0.9 ? "partial" : "fuzzy";
-        }
+      // Partial match in canonical name
+      if (canonicalName.includes(firstInputPart)) {
+        const confidence = Math.min(0.9, firstInputPart.length / name.length);
+        console.log(
+          `✅ Partial match found: ${location.canonical_name} (${location.target_type}, ${(confidence * 100).toFixed(1)}%)`
+        );
+        return {
+          location,
+          confidence,
+          matchType: "partial",
+        };
       }
     }
 
-    if (bestMatch && bestScore > 0.6) {
+    // If we have results but no good matches, take the first city result as fallback
+    const firstCity = filteredResults.find(
+      (loc) => loc.target_type.toLowerCase() === "city"
+    );
+
+    if (firstCity) {
       console.log(
-        `✅ Best match: ${bestMatch.canonical_name} (${bestMatch.target_type}, ${matchType}, ${(bestScore * 100).toFixed(1)}%)`
+        `🔄 Using first city result as fallback: ${firstCity.canonical_name}`
       );
       return {
-        location: bestMatch,
-        confidence: bestScore,
-        matchType,
+        location: firstCity,
+        confidence: 0.7,
+        matchType: "fuzzy",
+      };
+    }
+
+    // Last resort: take the first result
+    if (filteredResults.length > 0) {
+      const firstResult = filteredResults[0];
+      console.log(
+        `🔄 Using first result as last resort: ${firstResult.canonical_name} (${firstResult.target_type})`
+      );
+      return {
+        location: firstResult,
+        confidence: 0.6,
+        matchType: "fuzzy",
       };
     }
 
     console.warn(
-      `⚠️ No good match found for "${locationInput}" in ${countryCode}`
+      `⚠️ No enhanced location match found for "${locationInput}" in ${countryCode}, using original`
     );
     return null;
   } catch (error) {
@@ -349,7 +363,7 @@ export async function findBestLocationMatch(
 }
 
 /**
- * Gets multiple location suggestions for a given input with enhanced filtering
+ * Gets multiple location suggestions using SerpAPI search
  */
 export async function getLocationSuggestions(
   locationInput: string,
@@ -358,64 +372,82 @@ export async function getLocationSuggestions(
   options: LocationFilterOptions = {}
 ): Promise<LocationMatch[]> {
   try {
-    // Always prioritise cities for suggestions
-    const filterOptions: LocationFilterOptions = {
-      prioritiseCities: true,
-      preferBusinessCentres: true,
-      maxResults: limit * 3, // Get more candidates before final filtering
-      ...options,
-    };
+    console.log(
+      `🔍 Getting ${limit} suggestions for "${locationInput}" in ${countryCode.toUpperCase()}`
+    );
 
-    // Prioritise cities for suggestions
-    let locations = await getCities(countryCode);
+    // Use SerpAPI search to get relevant results
+    const searchResults = await getLocationsBySearch(locationInput, limit * 2);
 
-    if (locations.length === 0) {
-      const allLocations = await getLocations();
-      locations = allLocations.filter(
-        (loc) => loc.country_code.toLowerCase() === countryCode.toLowerCase()
-      );
+    if (searchResults.length === 0) {
+      console.warn(`⚠️ No suggestions found for "${locationInput}"`);
+      return [];
     }
 
-    // Apply filtering
-    locations = filterLocations(locations, filterOptions);
+    // Filter by country code
+    let countryFilteredResults = searchResults.filter(
+      (loc) => loc.country_code.toLowerCase() === countryCode.toLowerCase()
+    );
+
+    // If no results for the country, try without country filtering
+    if (countryFilteredResults.length === 0) {
+      countryFilteredResults = searchResults;
+    }
+
+    // Apply filtering and prioritisation
+    const filteredResults = filterLocations(countryFilteredResults, {
+      prioritiseCities: true,
+      preferBusinessCentres: true,
+      ...options,
+    });
 
     const input = locationInput.toLowerCase().trim();
     const suggestions: LocationMatch[] = [];
 
-    for (const location of locations) {
+    for (const location of filteredResults) {
       const name = location.name.toLowerCase();
       const canonicalName = location.canonical_name.toLowerCase();
+      const inputParts = input.split(",").map((p) => p.trim());
+      const firstInputPart = inputParts[0];
 
-      let score = 0;
+      let confidence = 0;
       let matchType: "exact" | "partial" | "fuzzy" = "fuzzy";
 
-      // Check for matches
-      if (name === input || canonicalName.includes(input)) {
-        score = name === input ? 1.0 : input.length / canonicalName.length;
-        matchType = name === input ? "exact" : "partial";
-      } else {
-        const nameScore = calculateSimilarity(name, input);
-        const canonicalParts = canonicalName.split(",").map((p) => p.trim());
-        const partScores = canonicalParts.map((part) =>
-          calculateSimilarity(part, input)
-        );
-        score = Math.max(nameScore, ...partScores);
-        matchType = score > 0.9 ? "partial" : "fuzzy";
+      // Exact matches
+      if (name === input || name === firstInputPart) {
+        confidence = 1.0;
+        matchType = "exact";
+      }
+      // Partial matches
+      else if (
+        canonicalName.includes(firstInputPart) ||
+        name.includes(firstInputPart)
+      ) {
+        confidence = 0.8;
+        matchType = "partial";
+      }
+      // Fuzzy matches using similarity
+      else {
+        const nameScore = calculateSimilarity(name, firstInputPart);
+        if (nameScore > 0.6) {
+          confidence = nameScore * 0.7; // Scale down fuzzy matches
+          matchType = "fuzzy";
+        }
       }
 
-      if (score > 0.5) {
+      if (confidence > 0.5) {
         suggestions.push({
           location,
-          confidence: score,
+          confidence,
           matchType,
         });
       }
     }
 
-    // Sort by confidence and return top results
-    return suggestions
+    // Sort by confidence, then by city preference, then by reach
+    const sortedSuggestions = suggestions
       .sort((a, b) => {
-        // First sort by confidence
+        // First by confidence
         if (b.confidence !== a.confidence) {
           return b.confidence - a.confidence;
         }
@@ -428,6 +460,12 @@ export async function getLocationSuggestions(
         return b.location.reach - a.location.reach;
       })
       .slice(0, limit);
+
+    console.log(
+      `✅ Found ${sortedSuggestions.length} suggestions for "${locationInput}"`
+    );
+
+    return sortedSuggestions;
   } catch (error) {
     console.error("❌ Failed to get location suggestions:", error);
     return [];
@@ -451,16 +489,36 @@ export async function validateLocation(
 }
 
 /**
- * Gets all cities for a given country code (useful for dropdowns/autocomplete)
+ * Gets all cities for a given country code using search (useful for dropdowns/autocomplete)
  */
 export async function getCitiesForCountry(
   countryCode: string,
   options: LocationFilterOptions = {}
 ): Promise<SerpAPILocation[]> {
   try {
-    const cities = await getCities(countryCode);
-    return filterLocations(cities, {
+    // Search for common city-related terms to get a good sample
+    const citySearchTerms = ["city", "capital", "major cities", "urban areas"];
+    const allResults: SerpAPILocation[] = [];
+
+    for (const term of citySearchTerms) {
+      const results = await getLocationsBySearch(term, 20);
+      const countryResults = results.filter(
+        (loc) =>
+          loc.country_code.toLowerCase() === countryCode.toLowerCase() &&
+          loc.target_type.toLowerCase() === "city"
+      );
+      allResults.push(...countryResults);
+    }
+
+    // Remove duplicates based on google_id
+    const uniqueResults = allResults.filter(
+      (location, index, self) =>
+        index === self.findIndex((l) => l.google_id === location.google_id)
+    );
+
+    return filterLocations(uniqueResults, {
       preferBusinessCentres: true,
+      targetTypes: ["City"],
       ...options,
     });
   } catch (error) {
@@ -470,12 +528,9 @@ export async function getCitiesForCountry(
 }
 
 /**
- * Clears the location cache (useful for testing or forced refresh)
+ * Clears the search cache (useful for testing or forced refresh)
  */
 export function clearLocationCache(): void {
-  locationsCache = null;
-  citiesCache = null;
-  cacheExpiry = 0;
-  citiesCacheExpiry = 0;
-  console.log("🧹 Location cache cleared");
+  searchCache.clear();
+  console.log("🧹 Location search cache cleared");
 }
