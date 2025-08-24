@@ -1013,7 +1013,7 @@ export async function reverseJobSearch(
         userId: options.userId,
         searchId: searchId,
         countryCode: inferredCountryCode,
-        isProcessed: true, // Mark as processed since we already have AI data
+        isProcessed: "true", // Mark as processed since we already have AI data
       });
 
       const responseTime = Date.now() - startTime;
