@@ -156,6 +156,9 @@ async function executeResearch(
       model,
       responseTime,
       costDollars,
+      company: params.company,
+      position: params.position,
+      location: params.location,
     });
 
     console.log("Research completed successfully:", reportId);

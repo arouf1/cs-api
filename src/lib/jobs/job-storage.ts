@@ -50,7 +50,9 @@ export interface StoredJobResult {
   // Structured job data
   aiData?: StructuredJob;
   isProcessed?: "false" | "pending" | "true";
-  embedding?: number[];
+  titleEmbedding?: number[];
+  descriptionEmbedding?: number[];
+  combinedEmbedding?: number[];
   embeddingText?: string;
 
   // Extracted data for filtering
@@ -115,21 +117,32 @@ export async function updateJobSearchResults(
   } = {}
 ): Promise<void> {
   try {
-    // Update in Convex
-    await convex.mutation("functions:updateJobSearchResults" as any, {
+    console.log("Updating job search results with searchId:", searchId);
+
+    if (!searchId) {
+      throw new Error("searchId is required to update job search results");
+    }
+
+    const mutationArgs = {
       id: searchId as any,
       data: {
-        searchId: result.searchId,
         totalFound: result.totalFound,
         jobCount: result.jobs.length,
         searchParams: result.searchParams,
-        provider: result.provider,
       },
       status: "complete" as const,
       model: options.model,
       responseTime: options.responseTime,
       provider: result.provider,
-    });
+    };
+
+    console.log("Mutation args:", JSON.stringify(mutationArgs, null, 2));
+
+    // Update in Convex
+    await convex.mutation(
+      "functions:updateJobSearchResults" as any,
+      mutationArgs
+    );
   } catch (error) {
     console.error("Failed to update job search results:", error);
     throw new Error("Failed to update job search results");
@@ -222,16 +235,20 @@ export async function storeJobResult(
   } = {}
 ): Promise<string> {
   try {
-    let embedding: number[] | undefined;
+    let embedding:
+      | {
+          titleEmbedding: number[];
+          descriptionEmbedding: number[];
+          combinedEmbedding: number[];
+        }
+      | undefined;
     let embeddingText: string | undefined;
 
     // Only generate embeddings for processed jobs (to save costs)
     if (options.isProcessed === "true") {
-      // Prepare text for embedding
-      embeddingText = [
-        `Title: ${job.title}`,
-        `Company: ${job.company}`,
-        `Location: ${job.location}`,
+      // Prepare different texts for different embeddings
+      const titleText = `${job.title} at ${job.company} in ${job.location}`;
+      const descriptionText = [
         `Job Type: ${job.jobType || ""}`,
         `Experience Level: ${job.experienceLevel || ""}`,
         `Description: ${job.description}`,
@@ -243,8 +260,17 @@ export async function storeJobResult(
         `Key Responsibilities: ${job.jobAnalysis.keyResponsibilities.join(", ")}`,
       ].join(" ");
 
-      // Generate embedding
-      embedding = await generateEmbedding(embeddingText);
+      embeddingText = [titleText, descriptionText].join(" ");
+
+      // Generate separate embeddings
+      const [titleEmbedding, descriptionEmbedding, combinedEmbedding] =
+        await Promise.all([
+          generateEmbedding(titleText),
+          generateEmbedding(descriptionText),
+          generateEmbedding(embeddingText),
+        ]);
+
+      embedding = { titleEmbedding, descriptionEmbedding, combinedEmbedding };
     }
 
     // Extract data for filtering
@@ -280,7 +306,9 @@ export async function storeJobResult(
         isProcessed: options.isProcessed ?? "true",
 
         // Embeddings
-        embedding,
+        titleEmbedding: embedding?.titleEmbedding,
+        descriptionEmbedding: embedding?.descriptionEmbedding,
+        combinedEmbedding: embedding?.combinedEmbedding,
         embeddingText: embeddingText
           ? prepareTextForEmbedding(embeddingText)
           : undefined,
@@ -509,20 +537,25 @@ export async function findExistingReverseJob(
   url: string
 ): Promise<StoredJobResult | null> {
   try {
-    console.log(`🔍 Searching for existing job with shareLink: ${url} and provider: reverse`);
-    
+    console.log(
+      `🔍 Searching for existing job with shareLink: ${url} and provider: reverse`
+    );
+
     // Use the existing getJobResults function to find jobs with this provider
     const reverseJobs = await getJobResults({
       provider: "reverse",
       limit: 100, // Get more results to search through
     });
-    
+
     console.log(`📊 Found ${reverseJobs.length} reverse jobs to check`);
-    
+
     // Find job with matching shareLink
-    const existingJob = reverseJobs.find(job => job.shareLink === url);
-    
-    console.log(`📊 Query result:`, existingJob ? `Found job: ${existingJob.title}` : "No job found");
+    const existingJob = reverseJobs.find((job) => job.shareLink === url);
+
+    console.log(
+      `📊 Query result:`,
+      existingJob ? `Found job: ${existingJob.title}` : "No job found"
+    );
     return existingJob || null;
   } catch (error) {
     console.error("Failed to find existing reverse job:", error);

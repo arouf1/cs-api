@@ -101,7 +101,9 @@ export const updateResearchReport = mutation({
   args: {
     id: v.id("researchReports"),
     data: v.any(),
-    embedding: v.optional(v.array(v.number())),
+    titleEmbedding: v.optional(v.array(v.number())),
+    descriptionEmbedding: v.optional(v.array(v.number())),
+    combinedEmbedding: v.optional(v.array(v.number())),
     embeddingText: v.optional(v.string()),
     status: v.union(v.literal("complete"), v.literal("failed")),
     model: v.optional(v.string()),
@@ -129,7 +131,9 @@ export const saveResearchReport = mutation({
       v.literal("streaming")
     ),
     data: v.any(),
-    embedding: v.optional(v.array(v.number())),
+    titleEmbedding: v.optional(v.array(v.number())),
+    descriptionEmbedding: v.optional(v.array(v.number())),
+    combinedEmbedding: v.optional(v.array(v.number())),
     embeddingText: v.optional(v.string()),
     userId: v.optional(v.string()),
     model: v.optional(v.string()),
@@ -152,7 +156,17 @@ export const getResearchReport = query({
     id: v.id("researchReports"),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.id);
+    const report = await ctx.db.get(args.id);
+    if (!report) return null;
+
+    // Remove embedding fields from response
+    const {
+      titleEmbedding,
+      descriptionEmbedding,
+      combinedEmbedding,
+      ...reportWithoutEmbeddings
+    } = report;
+    return reportWithoutEmbeddings;
   },
 });
 
@@ -181,7 +195,18 @@ export const getResearchReports = query({
       query = query.filter((q) => q.eq(q.field("location"), args.location));
     }
 
-    return await query.order("desc").take(args.limit ?? 50);
+    const reports = await query.order("desc").take(args.limit ?? 50);
+
+    // Remove embedding fields from response
+    return reports.map((report) => {
+      const {
+        titleEmbedding,
+        descriptionEmbedding,
+        combinedEmbedding,
+        ...reportWithoutEmbeddings
+      } = report;
+      return reportWithoutEmbeddings;
+    });
   },
 });
 
@@ -280,15 +305,22 @@ export const searchResearchReports = query({
 
     const reports = await query.collect();
 
-    // Calculate cosine similarity for each report
+    // Calculate cosine similarity for each report using combinedEmbedding
     const reportsWithSimilarity = reports
-      .filter((report) => report.embedding) // Only reports with embeddings
+      .filter((report) => report.combinedEmbedding) // Only reports with combinedEmbedding
       .map((report) => {
         const similarity = cosineSimilarity(
           args.queryEmbedding,
-          report.embedding!
+          report.combinedEmbedding!
         );
-        return { ...report, similarity };
+        // Remove embedding fields from response
+        const {
+          titleEmbedding,
+          descriptionEmbedding,
+          combinedEmbedding,
+          ...reportWithoutEmbeddings
+        } = report;
+        return { ...reportWithoutEmbeddings, similarity };
       });
 
     // Sort by similarity and return top results
@@ -497,7 +529,9 @@ export const saveLinkedInProfile = mutation({
       v.union(v.literal("false"), v.literal("pending"), v.literal("true"))
     ),
     rawData: v.optional(v.any()),
-    embedding: v.optional(v.array(v.number())),
+    titleEmbedding: v.optional(v.array(v.number())),
+    descriptionEmbedding: v.optional(v.array(v.number())),
+    combinedEmbedding: v.optional(v.array(v.number())),
     embeddingText: v.optional(v.string()),
     userId: v.optional(v.string()),
     searchId: v.optional(v.string()),
@@ -552,7 +586,9 @@ export const updateLinkedInProfileWithAI = mutation({
   args: {
     id: v.id("linkedinProfiles"),
     aiData: v.any(),
-    embedding: v.optional(v.array(v.number())),
+    titleEmbedding: v.optional(v.array(v.number())),
+    descriptionEmbedding: v.optional(v.array(v.number())),
+    combinedEmbedding: v.optional(v.array(v.number())),
     embeddingText: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -960,7 +996,18 @@ export const getLinkedInProfiles = query({
       query = query.filter((q) => q.eq(q.field("position"), args.position));
     }
 
-    return await query.order("desc").take(args.limit ?? 50);
+    const profiles = await query.order("desc").take(args.limit ?? 50);
+
+    // Remove embedding fields from response
+    return profiles.map((profile) => {
+      const {
+        titleEmbedding,
+        descriptionEmbedding,
+        combinedEmbedding,
+        ...profileWithoutEmbeddings
+      } = profile;
+      return profileWithoutEmbeddings;
+    });
   },
 });
 
@@ -981,15 +1028,22 @@ export const searchLinkedInProfiles = query({
 
     const profiles = await query.collect();
 
-    // Calculate cosine similarity for each profile
+    // Calculate cosine similarity for each profile using combinedEmbedding
     const profilesWithSimilarity = profiles
-      .filter((profile) => profile.embedding) // Only profiles with embeddings
+      .filter((profile) => profile.combinedEmbedding) // Only profiles with combinedEmbedding
       .map((profile) => {
         const similarity = cosineSimilarity(
           args.queryEmbedding,
-          profile.embedding!
+          profile.combinedEmbedding!
         );
-        return { ...profile, similarity };
+        // Remove embedding fields from response
+        const {
+          titleEmbedding,
+          descriptionEmbedding,
+          combinedEmbedding,
+          ...profileWithoutEmbeddings
+        } = profile;
+        return { ...profileWithoutEmbeddings, similarity };
       });
 
     // Sort by similarity and return top results
@@ -1150,7 +1204,9 @@ export const saveJobResult = mutation({
     ),
 
     // Embeddings
-    embedding: v.optional(v.array(v.number())),
+    titleEmbedding: v.optional(v.array(v.number())),
+    descriptionEmbedding: v.optional(v.array(v.number())),
+    combinedEmbedding: v.optional(v.array(v.number())),
     embeddingText: v.optional(v.string()),
 
     // Extracted data for filtering
@@ -1181,7 +1237,9 @@ export const updateJobResultWithAI = mutation({
   args: {
     id: v.id("jobsResults"),
     aiData: v.any(),
-    embedding: v.optional(v.array(v.number())),
+    titleEmbedding: v.optional(v.array(v.number())),
+    descriptionEmbedding: v.optional(v.array(v.number())),
+    combinedEmbedding: v.optional(v.array(v.number())),
     embeddingText: v.optional(v.string()),
     jobType: v.optional(v.string()),
     experienceLevel: v.optional(v.string()),
@@ -1300,105 +1358,103 @@ export const getJobResults = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    // Helper function to remove embedding fields from job results
+    const removeEmbeddings = (jobs: any[]) => {
+      return jobs.map((job) => {
+        const {
+          titleEmbedding,
+          descriptionEmbedding,
+          combinedEmbedding,
+          ...jobWithoutEmbeddings
+        } = job;
+        return jobWithoutEmbeddings;
+      });
+    };
+
+    let jobs: any[];
+
     // Use the most specific filter available
     if (args.userId) {
-      return await ctx.db
+      jobs = await ctx.db
         .query("jobsResults")
         .withIndex("by_user", (q) => q.eq("userId", args.userId))
         .order("desc")
         .take(args.limit ?? 50);
-    }
-
-    if (args.searchId) {
-      return await ctx.db
+    } else if (args.searchId) {
+      jobs = await ctx.db
         .query("jobsResults")
         .withIndex("by_search", (q) => q.eq("searchId", args.searchId))
         .order("desc")
         .take(args.limit ?? 50);
-    }
-
-    if (args.title) {
-      return await ctx.db
+    } else if (args.title) {
+      jobs = await ctx.db
         .query("jobsResults")
         .withIndex("by_title", (q) => q.eq("title", args.title!))
         .order("desc")
         .take(args.limit ?? 50);
-    }
-
-    if (args.companyName) {
-      return await ctx.db
+    } else if (args.companyName) {
+      jobs = await ctx.db
         .query("jobsResults")
         .withIndex("by_company", (q) => q.eq("companyName", args.companyName!))
         .order("desc")
         .take(args.limit ?? 50);
-    }
-
-    if (args.location) {
-      return await ctx.db
+    } else if (args.location) {
+      jobs = await ctx.db
         .query("jobsResults")
         .withIndex("by_location", (q) => q.eq("location", args.location!))
         .order("desc")
         .take(args.limit ?? 50);
-    }
-
-    if (args.provider) {
-      return await ctx.db
+    } else if (args.provider) {
+      jobs = await ctx.db
         .query("jobsResults")
         .withIndex("by_provider", (q) => q.eq("provider", args.provider!))
         .order("desc")
         .take(args.limit ?? 50);
-    }
-
-    if (args.jobType) {
-      return await ctx.db
+    } else if (args.jobType) {
+      jobs = await ctx.db
         .query("jobsResults")
         .withIndex("by_job_type", (q) => q.eq("jobType", args.jobType))
         .order("desc")
         .take(args.limit ?? 50);
-    }
-
-    if (args.experienceLevel) {
-      return await ctx.db
+    } else if (args.experienceLevel) {
+      jobs = await ctx.db
         .query("jobsResults")
         .withIndex("by_experience", (q) =>
           q.eq("experienceLevel", args.experienceLevel)
         )
         .order("desc")
         .take(args.limit ?? 50);
-    }
-
-    if (args.industry) {
-      return await ctx.db
+    } else if (args.industry) {
+      jobs = await ctx.db
         .query("jobsResults")
         .withIndex("by_industry", (q) => q.eq("industry", args.industry))
         .order("desc")
         .take(args.limit ?? 50);
-    }
-
-    if (args.workArrangement) {
-      return await ctx.db
+    } else if (args.workArrangement) {
+      jobs = await ctx.db
         .query("jobsResults")
         .withIndex("by_work_arrangement", (q) =>
           q.eq("workArrangement", args.workArrangement)
         )
         .order("desc")
         .take(args.limit ?? 50);
-    }
-
-    if (args.isProcessed !== undefined) {
-      return await ctx.db
+    } else if (args.isProcessed !== undefined) {
+      jobs = await ctx.db
         .query("jobsResults")
         .withIndex("by_processed", (q) => q.eq("isProcessed", args.isProcessed))
         .order("desc")
         .take(args.limit ?? 50);
+    } else {
+      // Default: get all job results ordered by creation time
+      jobs = await ctx.db
+        .query("jobsResults")
+        .withIndex("by_created")
+        .order("desc")
+        .take(args.limit ?? 50);
     }
 
-    // Default: get all job results ordered by creation time
-    return await ctx.db
-      .query("jobsResults")
-      .withIndex("by_created")
-      .order("desc")
-      .take(args.limit ?? 50);
+    // Remove embedding fields from response
+    return removeEmbeddings(jobs);
   },
 });
 

@@ -870,8 +870,61 @@ export async function searchJobsDirect(
   options: JobSearchOptions = {}
 ): Promise<JobSearchResult> {
   const validatedParams = validateJobSearchParams(params);
-  const searchId = generateSearchId();
-  return await executeJobSearch(searchId, validatedParams, options);
+  let searchId = generateSearchId();
+
+  // If we're storing results, create a search record first
+  if (options.storeResult) {
+    const { createPendingJobSearch, updateJobSearchResults } = await import(
+      "./job-storage"
+    );
+
+    // Create a search record in Convex
+    const searchRecord = await createPendingJobSearch(validatedParams, {
+      userId: options.userId,
+    });
+    searchId = searchRecord.searchId; // Use the search ID
+  }
+
+  const result = await executeJobSearch(searchId, validatedParams, options);
+
+  // If storeResult is true, store the jobs
+  if (options.storeResult) {
+    // Update the search with results
+    const { storeRawJobResult, updateJobSearchResults } = await import(
+      "./job-storage"
+    );
+
+    // Update result with the correct searchId (Convex ID)
+    result.searchId = searchId;
+
+    await updateJobSearchResults(searchId, result, {
+      userId: options.userId,
+      responseTime: result.responseTime,
+    });
+
+    if (result.rawJobs && result.rawJobs.length > 0) {
+      const rawJobIds: string[] = [];
+
+      for (const rawJob of result.rawJobs) {
+        try {
+          const jobId = await storeRawJobResult(rawJob, searchId, {
+            userId: options.userId,
+            countryCode: validatedParams.countryCode,
+          });
+          rawJobIds.push(jobId);
+        } catch (error) {
+          console.error("Failed to store individual job result:", error);
+        }
+      }
+
+      console.log(
+        `Stored ${rawJobIds.length} jobs in Convex for AI processing`
+      );
+      result.convexJobIds = rawJobIds;
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -890,13 +943,13 @@ export async function reverseJobSearch(
     const { findExistingReverseJob } = await import("./job-storage");
     console.log(`🔍 Checking for existing job with URL: ${params.url}`);
     const existingJob = await findExistingReverseJob(params.url);
-    
+
     if (existingJob) {
       console.log(`✅ Found existing job for URL: ${params.url}`);
       console.log(`📋 Job: ${existingJob.title} at ${existingJob.companyName}`);
-      
+
       const responseTime = Date.now() - startTime;
-      
+
       // Return the existing job data
       return {
         job: existingJob.aiData || {
@@ -906,7 +959,7 @@ export async function reverseJobSearch(
           description: existingJob.description,
           jobType: existingJob.jobType || null,
           salaryRange: existingJob.salaryRange || null,
-          experienceLevel: existingJob.experienceLevel as any || null,
+          experienceLevel: (existingJob.experienceLevel as any) || null,
           requirements: {
             essential: [],
             preferred: [],
@@ -922,7 +975,7 @@ export async function reverseJobSearch(
             careerProgression: null,
             companySize: null,
             industry: existingJob.industry || null,
-            workArrangement: existingJob.workArrangement as any || "Unknown",
+            workArrangement: (existingJob.workArrangement as any) || "Unknown",
           },
           applicationDetails: {
             applyOptions: existingJob.applyOptions || [],

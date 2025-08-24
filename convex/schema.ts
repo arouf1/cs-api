@@ -35,7 +35,9 @@ export default defineSchema({
     expiresAt: v.optional(v.number()), // For pending entries timeout (5 minutes)
 
     // Embeddings for semantic search (only populated when complete)
-    embedding: v.optional(v.array(v.number())), // Vector embedding of the research content
+    titleEmbedding: v.optional(v.array(v.number())), // Vector embedding of the research title/company+position
+    descriptionEmbedding: v.optional(v.array(v.number())), // Vector embedding of the research content/data
+    combinedEmbedding: v.optional(v.array(v.number())), // Vector embedding of the combined research content
     embeddingText: v.optional(v.string()), // The text that was embedded (for reference)
 
     // Metadata
@@ -113,7 +115,9 @@ export default defineSchema({
     rawData: v.optional(v.any()), // Raw profile data from Exa for AI processing
 
     // Embeddings for semantic search
-    embedding: v.optional(v.array(v.number())), // Vector embedding of the profile content
+    titleEmbedding: v.optional(v.array(v.number())), // Vector embedding of the profile title/name
+    descriptionEmbedding: v.optional(v.array(v.number())), // Vector embedding of the profile description/bio
+    combinedEmbedding: v.optional(v.array(v.number())), // Vector embedding of the combined profile content
     embeddingText: v.optional(v.string()), // The text that was embedded (for reference)
 
     // Extracted profile data from rawData.text
@@ -208,10 +212,14 @@ export default defineSchema({
     aiData: v.optional(v.any()), // The complete StructuredJob object (AI processed)
 
     // Processing status
-    isProcessed: v.optional(v.union(v.literal("false"), v.literal("pending"), v.literal("true"))), // AI processing status: false (unprocessed), pending (queued), true (complete)
+    isProcessed: v.optional(
+      v.union(v.literal("false"), v.literal("pending"), v.literal("true"))
+    ), // AI processing status: false (unprocessed), pending (queued), true (complete)
 
     // Embeddings for semantic search
-    embedding: v.optional(v.array(v.number())), // Vector embedding of the job content
+    titleEmbedding: v.optional(v.array(v.number())), // Vector embedding of the job title
+    descriptionEmbedding: v.optional(v.array(v.number())), // Vector embedding of the job description
+    combinedEmbedding: v.optional(v.array(v.number())), // Vector embedding of the combined job content
     embeddingText: v.optional(v.string()), // The text that was embedded (for reference)
 
     // Extracted job data for filtering

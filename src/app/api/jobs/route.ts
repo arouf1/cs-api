@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
 
       const result = await searchJobsDirect(validatedParams, {
         userId,
-        storeResult: false, // For now, don't store direct searches
+        storeResult: false, // Direct mode doesn't store in Convex
       });
 
       return NextResponse.json({

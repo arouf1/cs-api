@@ -42,7 +42,9 @@ export interface StoredLinkedInProfile {
   aiData: StructuredLinkedInProfile;
   isProcessed?: "false" | "pending" | "true";
   rawData?: any;
-  embedding?: number[];
+  titleEmbedding?: number[];
+  descriptionEmbedding?: number[];
+  combinedEmbedding?: number[];
   embeddingText?: string;
   userId?: string;
   searchId?: string;
@@ -143,7 +145,13 @@ export async function storeLinkedInProfile(
   } = {}
 ): Promise<string> {
   try {
-    let embedding: number[] | undefined;
+    let embedding:
+      | {
+          titleEmbedding: number[];
+          descriptionEmbedding: number[];
+          combinedEmbedding: number[];
+        }
+      | undefined;
     let embeddingText: string | undefined;
 
     // Extract Exa API fields from rawData
@@ -159,11 +167,9 @@ export async function storeLinkedInProfile(
 
     // Only generate embeddings for processed profiles (to save costs)
     if (options.isProcessed === "true") {
-      // Prepare text for embedding
-      embeddingText = [
-        `Name: ${profile.name}`,
-        `Position: ${profile.position}`,
-        `Company: ${profile.company}`,
+      // Prepare different texts for different embeddings
+      const titleText = `${profile.name} - ${profile.position} at ${profile.company}`;
+      const descriptionText = [
         `Location: ${profile.location}`,
         `Bio: ${profile.bio || ""}`,
         `Current Job: ${profile.currentJob.title} at ${profile.currentJob.company}`,
@@ -173,8 +179,17 @@ export async function storeLinkedInProfile(
         `Certifications: ${profile.certifications.map((cert) => cert.name).join(", ")}`,
       ].join(" ");
 
-      // Generate embedding
-      embedding = await generateEmbedding(embeddingText);
+      embeddingText = [titleText, descriptionText].join(" ");
+
+      // Generate separate embeddings
+      const [titleEmbedding, descriptionEmbedding, combinedEmbedding] =
+        await Promise.all([
+          generateEmbedding(titleText),
+          generateEmbedding(descriptionText),
+          generateEmbedding(embeddingText),
+        ]);
+
+      embedding = { titleEmbedding, descriptionEmbedding, combinedEmbedding };
     }
 
     // Store in Convex with new schema fields
@@ -194,7 +209,9 @@ export async function storeLinkedInProfile(
         aiData: profile,
         isProcessed: options.isProcessed ?? "true",
         rawData: options.rawData,
-        embedding,
+        titleEmbedding: embedding?.titleEmbedding,
+        descriptionEmbedding: embedding?.descriptionEmbedding,
+        combinedEmbedding: embedding?.combinedEmbedding,
         embeddingText: embeddingText
           ? prepareTextForEmbedding(embeddingText)
           : undefined,

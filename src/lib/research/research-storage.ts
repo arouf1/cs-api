@@ -15,7 +15,9 @@ export interface StoredResearchReport {
   data: any;
   status?: "pending" | "complete" | "failed";
   expiresAt?: number;
-  embedding?: number[];
+  titleEmbedding?: number[];
+  descriptionEmbedding?: number[];
+  combinedEmbedding?: number[];
   embeddingText?: string;
   userId?: string;
   model?: string;
@@ -76,16 +78,22 @@ export async function updateResearchReport(
     model?: string;
     responseTime?: number;
     costDollars?: number;
+    company?: string;
+    position?: string;
+    location?: string;
   } = {}
 ): Promise<void> {
   try {
-    // Prepare text for embedding based on type
+    // Prepare different texts for different embeddings
+    let titleText: string;
+    let descriptionText: string;
     let embeddingText: string;
 
     if (type === "structured" && typeof result === "object") {
-      // For structured results, combine all sections
+      // For structured results, separate title and content
       const report = result as ResearchResult;
-      embeddingText = [
+      titleText = `Research for ${options.company || "Unknown Company"} ${options.position || "Unknown Position"} in ${options.location || "Unknown Location"}`;
+      descriptionText = [
         `Company Overview: ${report.report.companyOverview}`,
         `News & Performance: ${report.report.newsAndPerformance}`,
         `Employee Insights: ${report.report.employeeInsights}`,
@@ -96,17 +104,27 @@ export async function updateResearchReport(
       ].join(" ");
     } else {
       // For completion and streaming results
-      embeddingText = String(result);
+      titleText = `Research report`;
+      descriptionText = String(result);
     }
 
-    // Generate embedding
-    const embedding = await generateEmbedding(embeddingText);
+    embeddingText = [titleText, descriptionText].join(" ");
+
+    // Generate separate embeddings
+    const [titleEmbedding, descriptionEmbedding, combinedEmbedding] =
+      await Promise.all([
+        generateEmbedding(titleText),
+        generateEmbedding(descriptionText),
+        generateEmbedding(embeddingText),
+      ]);
 
     // Update in Convex
     await convex.mutation("functions:updateResearchReport" as any, {
       id: reportId as any,
       data: result,
-      embedding,
+      titleEmbedding,
+      descriptionEmbedding,
+      combinedEmbedding,
       embeddingText: prepareTextForEmbedding(embeddingText),
       status: "complete" as const,
       ...options,
@@ -152,16 +170,16 @@ export async function storeResearchReport(
   } = {}
 ): Promise<string> {
   try {
-    // Prepare text for embedding based on type
+    // Prepare different texts for different embeddings
+    let titleText: string;
+    let descriptionText: string;
     let embeddingText: string;
 
     if (type === "structured" && typeof result === "object") {
-      // For structured results, combine all sections
+      // For structured results, separate title and content
       const report = result as ResearchResult;
-      embeddingText = [
-        `Company: ${params.company}`,
-        `Position: ${params.position}`,
-        `Location: ${params.location}`,
+      titleText = `${params.company} ${params.position} in ${params.location}`;
+      descriptionText = [
         `Company Overview: ${report.report.companyOverview}`,
         `News & Performance: ${report.report.newsAndPerformance}`,
         `Employee Insights: ${report.report.employeeInsights}`,
@@ -172,11 +190,19 @@ export async function storeResearchReport(
       ].join(" ");
     } else {
       // For completion and streaming results
-      embeddingText = `Company: ${params.company} Position: ${params.position} Location: ${params.location} ${result}`;
+      titleText = `${params.company} ${params.position} in ${params.location}`;
+      descriptionText = String(result);
     }
 
-    // Generate embedding
-    const embedding = await generateEmbedding(embeddingText);
+    embeddingText = [titleText, descriptionText].join(" ");
+
+    // Generate separate embeddings
+    const [titleEmbedding, descriptionEmbedding, combinedEmbedding] =
+      await Promise.all([
+        generateEmbedding(titleText),
+        generateEmbedding(descriptionText),
+        generateEmbedding(embeddingText),
+      ]);
 
     // Store in Convex
     const reportId = await convex.mutation(
@@ -187,7 +213,9 @@ export async function storeResearchReport(
         location: params.location,
         type,
         data: result,
-        embedding,
+        titleEmbedding,
+        descriptionEmbedding,
+        combinedEmbedding,
         embeddingText: prepareTextForEmbedding(embeddingText),
         ...options,
       }
