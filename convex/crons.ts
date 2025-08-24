@@ -3,12 +3,12 @@ import { internal } from "./_generated/api";
 
 const crons = cronJobs();
 
-// Process unprocessed LinkedIn profiles every 15 seconds for rapid processing
+// Process unprocessed LinkedIn profiles every 30 seconds for rapid processing
 crons.interval(
   "Process Unprocessed LinkedIn Profiles",
-  { seconds: 15 }, // Run every 15 seconds
+  { seconds: 30 }, // Run every 30 seconds
   internal.functions.processUnprocessedLinkedInProfiles,
-  { batchSize: 10 } // Process 10 profiles at a time
+  { batchSize: 50 } // Process 50 profiles at a time
 );
 
 // Update stale LinkedIn profiles every 24 hours
