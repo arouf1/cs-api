@@ -493,14 +493,30 @@ async function parseLinkedInProfile(
     console.log(`✅ Chat model obtained successfully`);
 
     console.log(`🔄 Calling generateObject with AI model...`);
+    console.log(`📊 Profile text length: ${rawProfile.text?.length || 0} characters`);
+    console.log(`🔗 Profile URL: ${rawProfile.url}`);
 
-          // Add timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(
-          () => reject(new Error("AI processing timeout after 5 minutes")),
-          300000 // 5 minutes
-        );
+    // Test the model with a simple call first
+    console.log(`🧪 Testing model connectivity...`);
+    try {
+      const testResponse = await model.doGenerate({
+        inputFormat: 'prompt',
+        mode: { type: 'regular' },
+        prompt: [{ role: 'user', content: 'Hello, can you respond with just "OK"?' }],
       });
+      console.log(`✅ Model connectivity test passed`);
+    } catch (testError) {
+      console.error(`❌ Model connectivity test failed:`, testError);
+      throw new Error(`Model connectivity failed: ${testError}`);
+    }
+
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(
+        () => reject(new Error("AI processing timeout after 5 minutes")),
+        300000 // 5 minutes
+      );
+    });
 
     const aiPromise = generateObject({
       model,
