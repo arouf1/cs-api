@@ -332,7 +332,9 @@ async function executeLinkedInSearch(
     };
 
     // Skip immediate AI processing - let the cron job handle it
-    console.log(`✅ Stored ${rawProfileIds.length} profiles - AI processing will be handled by cron job`);
+    console.log(
+      `✅ Stored ${rawProfileIds.length} profiles - AI processing will be handled by cron job`
+    );
 
     // Update the search entry with results
     await updateLinkedInSearchResults(searchId, result, {
@@ -611,7 +613,9 @@ export async function searchLinkedInProfilesDirect(
     );
 
     // Skip immediate AI processing - let the cron job handle it
-    console.log(`✅ Stored ${rawProfileIds.length} profiles - AI processing will be handled by cron job`);
+    console.log(
+      `✅ Stored ${rawProfileIds.length} profiles - AI processing will be handled by cron job`
+    );
 
     result.searchId = searchId;
   } else {

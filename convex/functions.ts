@@ -614,7 +614,6 @@ export const processUnprocessedLinkedInProfiles = internalMutation({
         
         // Update the timestamp to show we've checked this profile
         await ctx.db.patch(profile._id, {
-          cronCheckedAt: Date.now(),
           updatedAt: Date.now(),
         });
 
