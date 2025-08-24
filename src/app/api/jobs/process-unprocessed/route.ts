@@ -38,9 +38,9 @@ async function parseJobWithAI(rawData: any): Promise<StructuredJob> {
       keyResponsibilities: z.array(z.string()).describe("Key responsibilities"),
       idealCandidate: z.string().describe("Ideal candidate profile"),
       careerProgression: z.string().nullable().describe("Career progression opportunities"),
-      companySize: z.string().nullable().describe("Company size estimate"),
+      companySize: z.enum(["Startup", "Small", "Medium", "Large", "Enterprise"]).nullable().describe("Company size estimate"),
       industry: z.string().nullable().describe("Industry sector"),
-      workArrangement: z.string().describe("Work arrangement (Remote, Hybrid, On-site)"),
+      workArrangement: z.enum(["Remote", "Hybrid", "On-site", "Unknown"]).describe("Work arrangement (Remote, Hybrid, On-site)"),
     }),
     
     applicationDetails: z.object({
