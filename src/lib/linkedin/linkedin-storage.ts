@@ -236,11 +236,9 @@ export async function updateLinkedInProfileWithAI(
   processedProfile: StructuredLinkedInProfile
 ): Promise<void> {
   try {
-    // Prepare text for embedding
-    const embeddingText = [
-      `Name: ${processedProfile.name}`,
-      `Position: ${processedProfile.position}`,
-      `Company: ${processedProfile.company}`,
+    // Prepare different texts for different embeddings
+    const titleText = `${processedProfile.name} - ${processedProfile.position} at ${processedProfile.company}`;
+    const descriptionText = [
       `Location: ${processedProfile.location}`,
       `Bio: ${processedProfile.bio || ""}`,
       `Current Job: ${processedProfile.currentJob.title} at ${processedProfile.currentJob.company}`,
@@ -249,15 +247,23 @@ export async function updateLinkedInProfileWithAI(
       `Skills: ${processedProfile.skills.join(", ")}`,
       `Certifications: ${processedProfile.certifications.map((cert) => cert.name).join(", ")}`,
     ].join(" ");
+    
+    const embeddingText = [titleText, descriptionText].join(" ");
 
-    // Generate embedding
-    const embedding = await generateEmbedding(embeddingText);
+    // Generate separate embeddings
+    const [titleEmbedding, descriptionEmbedding, combinedEmbedding] = await Promise.all([
+      generateEmbedding(titleText),
+      generateEmbedding(descriptionText),
+      generateEmbedding(embeddingText)
+    ]);
 
     // Update in Convex
     await convex.mutation("functions:updateLinkedInProfileWithAI" as any, {
       id: profileId as any,
       aiData: processedProfile,
-      embedding,
+      titleEmbedding,
+      descriptionEmbedding,
+      combinedEmbedding,
       embeddingText: prepareTextForEmbedding(embeddingText),
     });
   } catch (error) {
