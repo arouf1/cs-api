@@ -493,7 +493,9 @@ export const saveLinkedInProfile = mutation({
 
     // Profile data
     aiData: v.any(),
-    isProcessed: v.optional(v.union(v.literal("false"), v.literal("pending"), v.literal("true"))),
+    isProcessed: v.optional(
+      v.union(v.literal("false"), v.literal("pending"), v.literal("true"))
+    ),
     rawData: v.optional(v.any()),
     embedding: v.optional(v.array(v.number())),
     embeddingText: v.optional(v.string()),
@@ -1775,3 +1777,5 @@ export const markProfileForProcessing = internalMutation({
     console.log(`✅ Marked profile ${args.profileId} for AI processing`);
   },
 });
+
+
