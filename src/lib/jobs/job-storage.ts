@@ -342,11 +342,9 @@ export async function updateJobResultWithAI(
   processedJob: StructuredJob
 ): Promise<void> {
   try {
-    // Prepare text for embedding
-    const embeddingText = [
-      `Title: ${processedJob.title}`,
-      `Company: ${processedJob.company}`,
-      `Location: ${processedJob.location}`,
+    // Prepare different texts for different embeddings
+    const titleText = `${processedJob.title} at ${processedJob.company} in ${processedJob.location}`;
+    const descriptionText = [
       `Job Type: ${processedJob.jobType || ""}`,
       `Experience Level: ${processedJob.experienceLevel || ""}`,
       `Description: ${processedJob.description}`,
@@ -357,9 +355,15 @@ export async function updateJobResultWithAI(
       `Work Arrangement: ${processedJob.jobAnalysis.workArrangement}`,
       `Key Responsibilities: ${processedJob.jobAnalysis.keyResponsibilities.join(", ")}`,
     ].join(" ");
+    
+    const embeddingText = [titleText, descriptionText].join(" ");
 
-    // Generate embedding
-    const embedding = await generateEmbedding(embeddingText);
+    // Generate separate embeddings
+    const [titleEmbedding, descriptionEmbedding, combinedEmbedding] = await Promise.all([
+      generateEmbedding(titleText),
+      generateEmbedding(descriptionText),
+      generateEmbedding(embeddingText)
+    ]);
 
     // Extract data for filtering (convert null to undefined for Convex)
     const jobType = processedJob.jobType || undefined;
@@ -373,7 +377,9 @@ export async function updateJobResultWithAI(
     const updateData: any = {
       id: jobResultId as any,
       aiData: processedJob,
-      embedding,
+      titleEmbedding,
+      descriptionEmbedding,
+      combinedEmbedding,
       embeddingText: prepareTextForEmbedding(embeddingText),
     };
 
