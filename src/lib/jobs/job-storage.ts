@@ -49,7 +49,7 @@ export interface StoredJobResult {
 
   // Structured job data
   aiData?: StructuredJob;
-  isProcessed?: boolean;
+  isProcessed?: "false" | "pending" | "true";
   embedding?: number[];
   embeddingText?: string;
 
@@ -218,7 +218,7 @@ export async function storeJobResult(
     userId?: string;
     searchId?: string;
     countryCode?: string;
-    isProcessed?: boolean;
+    isProcessed?: "false" | "pending" | "true";
   } = {}
 ): Promise<string> {
   try {
@@ -226,7 +226,7 @@ export async function storeJobResult(
     let embeddingText: string | undefined;
 
     // Only generate embeddings for processed jobs (to save costs)
-    if (options.isProcessed !== false) {
+    if (options.isProcessed === "true") {
       // Prepare text for embedding
       embeddingText = [
         `Title: ${job.title}`,
@@ -277,7 +277,7 @@ export async function storeJobResult(
 
         // Structured job data (AI processed)
         aiData: job,
-        isProcessed: options.isProcessed ?? true,
+        isProcessed: options.isProcessed ?? "true",
 
         // Embeddings
         embedding,
@@ -432,7 +432,7 @@ export async function getJobResults(
     experienceLevel?: string;
     industry?: string;
     workArrangement?: string;
-    isProcessed?: boolean;
+    isProcessed?: "false" | "pending" | "true";
     limit?: number;
   } = {}
 ): Promise<StoredJobResult[]> {

@@ -1190,7 +1190,7 @@ export const updateJobResultWithAI = mutation({
 
     await ctx.db.patch(id, {
       ...updateData,
-      isProcessed: true,
+      isProcessed: "true",
       updatedAt: Date.now(),
     });
   },
@@ -1554,7 +1554,7 @@ export const saveJobIfNotExists = mutation({
       searchId: args.searchId,
       userId: args.userId,
       countryCode: args.countryCode,
-      isProcessed: false,
+      isProcessed: "false",
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
@@ -1775,5 +1775,211 @@ export const markProfileForProcessing = internalMutation({
     });
 
     console.log(`✅ Marked profile ${args.profileId} for AI processing`);
+  },
+});
+
+// Internal action to process a job with AI
+export const processJobWithAI = internalAction({
+  args: {
+    jobId: v.id("jobsResults"),
+  },
+  handler: async (ctx, args) => {
+    try {
+      console.log(`🤖 Processing job ${args.jobId} with AI`);
+      
+      // Get environment variables
+      const apiUrl = process.env.CS_API_BASE_URL;
+      const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+      
+      if (!apiUrl) {
+        throw new Error("CS_API_BASE_URL environment variable not set");
+      }
+      
+      if (!bypassSecret) {
+        throw new Error("VERCEL_AUTOMATION_BYPASS_SECRET environment variable not set");
+      }
+      
+      console.log(`📡 Calling API at: ${apiUrl}/api/jobs/process-unprocessed`);
+      
+      const response = await fetch(`${apiUrl}/api/jobs/process-unprocessed`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-vercel-protection-bypass": bypassSecret,
+        },
+        body: JSON.stringify({
+          jobIds: [args.jobId], // Process just this one job
+          limit: 1,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API call failed: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || "Failed to process job");
+      }
+      
+      console.log(`✅ Successfully processed job via API: ${args.jobId}`);
+      return { success: true, result };
+      
+    } catch (error) {
+      console.error(`❌ Failed to process job ${args.jobId}:`, error);
+      
+      // Mark the job as having an error
+      await ctx.runMutation(internal.functions.markJobError, {
+        jobId: args.jobId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      
+      throw error;
+    }
+  },
+});
+
+// Internal mutation to mark job as having an error
+export const markJobError = internalMutation({
+  args: {
+    jobId: v.id("jobsResults"),
+    error: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.jobId, {
+      processingError: args.error,
+      isProcessed: "false", // Reset to false so it can be retried
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+// Internal query to get a job by ID
+export const getJobById = internalQuery({
+  args: {
+    jobId: v.id("jobsResults"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.jobId);
+  },
+});
+
+// Internal mutation to update job with AI-parsed data
+export const updateJobWithAIData = internalMutation({
+  args: {
+    jobId: v.id("jobsResults"),
+    aiData: v.any(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.jobId, {
+      aiData: args.aiData,
+      isProcessed: "true",
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+// Internal mutation to process unprocessed jobs (called by cron job)
+export const processUnprocessedJobs = internalMutation({
+  args: {
+    batchSize: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const batchSize = args.batchSize || 50; // Process 50 jobs at a time by default
+
+    console.log(
+      `🔄 Cron job: Looking for unprocessed jobs (batch size: ${batchSize})`
+    );
+
+    // Query for unprocessed jobs that have raw data (only process "false" status, not "pending")
+    const unprocessedJobs = await ctx.db
+      .query("jobsResults")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("isProcessed"), "false"),
+          q.neq(q.field("rawData"), null)
+        )
+      )
+      .take(batchSize);
+
+    if (unprocessedJobs.length === 0) {
+      console.log("✅ Cron job: No unprocessed jobs found");
+      return {
+        processed: 0,
+        errors: 0,
+        message: "No unprocessed jobs found",
+      };
+    }
+
+    console.log(
+      `📝 Cron job: Found ${unprocessedJobs.length} unprocessed jobs`
+    );
+
+    let processedCount = 0;
+    let errorCount = 0;
+
+    for (const job of unprocessedJobs) {
+      try {
+        console.log(
+          `🔄 Processing job: ${job.title} (${job.companyName})`
+        );
+
+        // Mark the job as pending before scheduling AI processing
+        await ctx.db.patch(job._id, {
+          isProcessed: "pending",
+          updatedAt: Date.now(),
+        });
+
+        // Schedule the AI processing action to run
+        await ctx.scheduler.runAfter(
+          0,
+          internal.functions.processJobWithAI,
+          { jobId: job._id }
+        );
+
+        processedCount++;
+        console.log(`✅ Queued AI processing for: ${job.title}`);
+      } catch (error) {
+        console.error(`❌ Failed to process job ${job.title}:`, error);
+        errorCount++;
+
+        // Mark the job with an error flag
+        await ctx.db.patch(job._id, {
+          processingError:
+            error instanceof Error ? error.message : String(error),
+          updatedAt: Date.now(),
+        });
+      }
+    }
+
+    const message = `Processed ${processedCount} jobs, ${errorCount} errors`;
+    console.log(`🎉 Cron job completed: ${message}`);
+
+    return {
+      processed: processedCount,
+      errors: errorCount,
+      message,
+    };
+  },
+});
+
+// Manual trigger to process unprocessed jobs (for testing/manual runs)
+export const triggerJobProcessing = mutation({
+  args: {
+    batchSize: v.optional(v.number()),
+  },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{ processed: number; errors: number; message: string }> => {
+    // Call the internal mutation
+    return await ctx.runMutation(
+      internal.functions.processUnprocessedJobs,
+      {
+        batchSize: args.batchSize || 50,
+      }
+    );
   },
 });

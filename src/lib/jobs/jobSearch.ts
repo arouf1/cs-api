@@ -267,13 +267,10 @@ export async function searchJobs(
           `Stored ${rawJobIds.length} individual job results for search ${searchId}`
         );
 
-        // Process jobs with AI in background (don't await)
+        // AI processing will be handled by cron job
         console.log(
-          `🚀 Triggering background AI processing for ${rawJobIds.length} jobs`
+          `📋 Stored ${rawJobIds.length} jobs for cron-based AI processing`
         );
-        processJobsWithAI(rawJobIds, searchId, options).catch((error) => {
-          console.error("❌ Background AI processing failed:", error);
-        });
       } else {
         console.log("No raw jobs found to store individually");
       }

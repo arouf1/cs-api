@@ -11,6 +11,14 @@ crons.interval(
   { batchSize: 50 } // Process 50 profiles at a time
 );
 
+// Process unprocessed jobs every 30 seconds for rapid processing
+crons.interval(
+  "Process Unprocessed Jobs",
+  { seconds: 30 }, // Run every 30 seconds
+  internal.functions.processUnprocessedJobs,
+  { batchSize: 50 } // Process 50 jobs at a time
+);
+
 // Update stale LinkedIn profiles every 24 hours
 crons.interval(
   "Update Stale LinkedIn Profiles",

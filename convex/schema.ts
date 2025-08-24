@@ -208,7 +208,7 @@ export default defineSchema({
     aiData: v.optional(v.any()), // The complete StructuredJob object (AI processed)
 
     // Processing status
-    isProcessed: v.optional(v.boolean()), // Whether AI processing is complete
+    isProcessed: v.optional(v.union(v.literal("false"), v.literal("pending"), v.literal("true"))), // AI processing status: false (unprocessed), pending (queued), true (complete)
 
     // Embeddings for semantic search
     embedding: v.optional(v.array(v.number())), // Vector embedding of the job content
