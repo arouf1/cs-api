@@ -8,7 +8,7 @@ crons.interval(
   "Process Unprocessed LinkedIn Profiles",
   { seconds: 15 }, // Run every 15 seconds
   internal.functions.processUnprocessedLinkedInProfiles,
-  { batchSize: 2 } // Process 2 profiles at a time to avoid timeouts
+  { batchSize: 10 } // Process 10 profiles at a time
 );
 
 // Update stale LinkedIn profiles every 24 hours

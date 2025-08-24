@@ -608,17 +608,15 @@ export const processUnprocessedLinkedInProfiles = internalMutation({
           `🔄 Processing profile: ${profile.author} (${profile.url})`
         );
 
-        // For now, just mark that we've seen this profile
-        // The actual AI processing needs to happen in your Next.js backend
-        console.log(`📋 Found unprocessed profile: ${profile.author}`);
+        // Schedule the AI processing action to run
+        await ctx.scheduler.runAfter(
+          0, 
+          internal.functions.processLinkedInProfileWithAI,
+          { profileId: profile._id }
+        );
         
-        // Update the timestamp to show we've checked this profile
-        await ctx.db.patch(profile._id, {
-          updatedAt: Date.now(),
-        });
-
         processedCount++;
-        console.log(`✅ Marked profile for external processing: ${profile.author}`);
+        console.log(`✅ Queued AI processing for: ${profile.author}`);
       } catch (error) {
         console.error(`❌ Failed to process profile ${profile.author}:`, error);
         errorCount++;
@@ -659,6 +657,108 @@ export const triggerProfileProcessing = mutation({
         batchSize: args.batchSize || 10,
       }
     );
+  },
+});
+
+// Internal action to process a LinkedIn profile with AI
+export const processLinkedInProfileWithAI = internalAction({
+  args: {
+    profileId: v.id("linkedinProfiles"),
+  },
+  handler: async (ctx, args) => {
+    try {
+      console.log(`🤖 Processing LinkedIn profile ${args.profileId} with AI`);
+      
+      // Get environment variables
+      const apiUrl = process.env.CS_API_BASE_URL;
+      const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+      
+      if (!apiUrl) {
+        throw new Error("CS_API_BASE_URL environment variable not set");
+      }
+      
+      if (!bypassSecret) {
+        throw new Error("VERCEL_AUTOMATION_BYPASS_SECRET environment variable not set");
+      }
+      
+      console.log(`📡 Calling API at: ${apiUrl}/api/linkedin/process-unprocessed`);
+      
+      const response = await fetch(`${apiUrl}/api/linkedin/process-unprocessed`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-vercel-protection-bypass": bypassSecret,
+        },
+        body: JSON.stringify({
+          profileIds: [args.profileId], // Process just this one profile
+          limit: 1,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API call failed: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || "Failed to process profile");
+      }
+      
+      console.log(`✅ Successfully processed profile via API: ${args.profileId}`);
+      return { success: true, result };
+      
+    } catch (error) {
+      console.error(`❌ Failed to process profile ${args.profileId}:`, error);
+      
+      // Mark the profile as having an error
+      await ctx.runMutation(internal.functions.markLinkedInProfileError, {
+        profileId: args.profileId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      
+      throw error;
+    }
+  },
+});
+
+// Internal query to get a LinkedIn profile by ID
+export const getLinkedInProfileById = internalQuery({
+  args: {
+    profileId: v.id("linkedinProfiles"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.profileId);
+  },
+});
+
+// Internal mutation to update LinkedIn profile with AI-parsed data
+export const updateLinkedInProfileWithAIData = internalMutation({
+  args: {
+    profileId: v.id("linkedinProfiles"),
+    aiData: v.any(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.profileId, {
+      aiData: args.aiData,
+      isProcessed: true,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+// Internal mutation to mark LinkedIn profile as having an error
+export const markLinkedInProfileError = internalMutation({
+  args: {
+    profileId: v.id("linkedinProfiles"),
+    error: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.profileId, {
+      processingError: args.error,
+      updatedAt: Date.now(),
+    });
   },
 });
 

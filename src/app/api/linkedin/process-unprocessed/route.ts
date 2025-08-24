@@ -76,6 +76,7 @@ Profile text: ${rawData.text}`,
  * 
  * Body:
  * - limit?: number - Maximum number of profiles to process (default: 2)
+ * - profileIds?: string[] - Specific profile IDs to process
  * 
  * Returns:
  * - { success: true, processed: number, failed: number, profiles: [...] }
@@ -84,18 +85,35 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const limit = body.limit || 2;
+    const specificProfileIds = body.profileIds;
 
-    console.log(`🤖 Processing up to ${limit} unprocessed LinkedIn profiles...`);
+    console.log(`🤖 Processing LinkedIn profiles...`);
 
-    // Get unprocessed profiles
-    const unprocessedProfiles = await getLinkedInProfiles({
-      limit,
-    });
+    let profilesToProcess: any[] = [];
 
-    // Filter to only unprocessed profiles with raw data
-    const profilesToProcess = unprocessedProfiles.filter(
-      (p) => !p.isProcessed && p.rawData
-    );
+    if (specificProfileIds && specificProfileIds.length > 0) {
+      // Process specific profiles
+      console.log(`Processing ${specificProfileIds.length} specific profiles`);
+      
+      for (const profileId of specificProfileIds) {
+        const profile = await getLinkedInProfile(profileId);
+        if (profile && !profile.isProcessed && profile.rawData) {
+          profilesToProcess.push(profile);
+        }
+      }
+    } else {
+      // Get unprocessed profiles
+      console.log(`Processing up to ${limit} unprocessed profiles`);
+      
+      const unprocessedProfiles = await getLinkedInProfiles({
+        limit,
+      });
+
+      // Filter to only unprocessed profiles with raw data
+      profilesToProcess = unprocessedProfiles.filter(
+        (p) => !p.isProcessed && p.rawData
+      );
+    }
 
     console.log(`Found ${profilesToProcess.length} profiles to process`);
 
