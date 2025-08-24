@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
             ...result,
             profiles: profiles.map((p) => ({
               ...p.aiData,
-              isProcessed: p.isProcessed ?? false,
+              isProcessed: p.isProcessed ?? "false",
             })),
           },
           message: `Found ${profiles.length} LinkedIn profiles (AI processing in background)`,
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
           status: searchResult.status,
           profiles: profiles.map((p) => ({
             ...p.aiData,
-            isProcessed: p.isProcessed ?? false,
+            isProcessed: p.isProcessed ?? "false",
           })),
           isExisting: searchResult.isExisting,
           message:

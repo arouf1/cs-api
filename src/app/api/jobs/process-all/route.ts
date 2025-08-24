@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
 
     // Get all unprocessed jobs
     const unprocessedJobs = await getJobResults({
-      isProcessed: false,
+      isProcessed: "false",
       limit: 10, // Process max 10 at a time to avoid timeouts
     });
 

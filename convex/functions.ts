@@ -1086,7 +1086,9 @@ export const findJobByShareLink = query({
       provider: v.string(),
       rawData: v.any(),
       aiData: v.optional(v.any()),
-      isProcessed: v.optional(v.union(v.literal("false"), v.literal("pending"), v.literal("true"))),
+      isProcessed: v.optional(
+        v.union(v.literal("false"), v.literal("pending"), v.literal("true"))
+      ),
       embedding: v.optional(v.array(v.number())),
       embeddingText: v.optional(v.string()),
       jobType: v.optional(v.string()),
@@ -1143,7 +1145,9 @@ export const saveJobResult = mutation({
 
     // Structured job data (AI processed)
     aiData: v.optional(v.any()),
-    isProcessed: v.optional(v.union(v.literal("false"), v.literal("pending"), v.literal("true"))),
+    isProcessed: v.optional(
+      v.union(v.literal("false"), v.literal("pending"), v.literal("true"))
+    ),
 
     // Embeddings
     embedding: v.optional(v.array(v.number())),
@@ -1290,7 +1294,9 @@ export const getJobResults = query({
     experienceLevel: v.optional(v.string()),
     industry: v.optional(v.string()),
     workArrangement: v.optional(v.string()),
-    isProcessed: v.optional(v.union(v.literal("false"), v.literal("pending"), v.literal("true"))),
+    isProcessed: v.optional(
+      v.union(v.literal("false"), v.literal("pending"), v.literal("true"))
+    ),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
