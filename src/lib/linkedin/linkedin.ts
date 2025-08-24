@@ -14,7 +14,7 @@ import {
 const exa = new Exa(config.exa.apiKey);
 
 // AI model for LinkedIn profile parsing
-const LINKEDIN_AI_MODEL = "gpt-4o-mini"; // More reliable model
+const LINKEDIN_AI_MODEL = "gpt-4.1-mini";
 
 export interface LinkedInSearchParams {
   jobTitle: string;
@@ -493,12 +493,15 @@ async function parseLinkedInProfile(
     console.log(`✅ Chat model obtained successfully`);
 
     console.log(`🔄 Calling generateObject with AI model...`);
-    
-    // Add timeout to prevent hanging
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('AI processing timeout after 30 seconds')), 30000);
-    });
-    
+
+          // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(
+          () => reject(new Error("AI processing timeout after 5 minutes")),
+          300000 // 5 minutes
+        );
+      });
+
     const aiPromise = generateObject({
       model,
       schema: StructuredProfileSchema,
@@ -530,8 +533,8 @@ Please provide a comprehensive analysis with particular attention to:
 5. Leadership experience and seniority level
 6. Educational background and certifications`,
     });
-    
-    const result = await Promise.race([aiPromise, timeoutPromise]) as any;
+
+    const result = (await Promise.race([aiPromise, timeoutPromise])) as any;
     console.log(`✅ generateObject completed successfully`);
 
     const finalProfile = {
