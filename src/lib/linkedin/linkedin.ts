@@ -442,16 +442,20 @@ async function processProfilesWithAI(
         );
 
         // Parse with AI
+        console.log(`🔄 Calling parseLinkedInProfile for ${profileId}...`);
         const structuredProfile = await parseLinkedInProfile(
           storedProfile.rawData
         );
+        console.log(`✅ AI parsing completed for: ${structuredProfile.name}`);
 
         console.log(
           `💾 Updating profile in database: ${structuredProfile.name}`
         );
 
         // Update the stored profile with AI-processed data
+        console.log(`🔄 Calling updateLinkedInProfileWithAI for ${profileId}...`);
         await updateLinkedInProfileWithAI(profileId, structuredProfile);
+        console.log(`✅ Database update completed for: ${structuredProfile.name}`);
 
         console.log(`✅ AI processed profile: ${structuredProfile.name}`);
       } catch (error) {
@@ -475,8 +479,11 @@ async function parseLinkedInProfile(
   rawProfile: RawLinkedInProfile
 ): Promise<StructuredLinkedInProfile> {
   try {
+    console.log(`🤖 Getting chat model: ${LINKEDIN_AI_MODEL}`);
     const model = getChatModel(LINKEDIN_AI_MODEL);
+    console.log(`✅ Chat model obtained successfully`);
 
+    console.log(`🔄 Calling generateObject with AI model...`);
     const result = await generateObject({
       model,
       schema: StructuredProfileSchema,
@@ -508,14 +515,19 @@ Please provide a comprehensive analysis with particular attention to:
 5. Leadership experience and seniority level
 6. Educational background and certifications`,
     });
+    console.log(`✅ generateObject completed successfully`);
 
-    return {
+    const finalProfile = {
       ...result.object,
       profileUrl: rawProfile.url,
       lastUpdated: rawProfile.publishedDate || new Date().toISOString(),
     };
+    console.log(`✅ Final profile structure created for: ${finalProfile.name}`);
+
+    return finalProfile;
   } catch (error) {
     console.error("Failed to parse LinkedIn profile:", error);
+    console.error("Error details:", error);
     throw new Error("Failed to parse LinkedIn profile with LLM");
   }
 }
