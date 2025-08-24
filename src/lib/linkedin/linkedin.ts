@@ -275,8 +275,11 @@ async function executeLinkedInSearch(
     console.log("Searching LinkedIn profiles with params:", params);
     console.log("EXA_API_KEY exists:", !!process.env.EXA_API_KEY);
 
+    let exaResult: any;
+    let rawProfileIds: string[] = [];
+
     try {
-      const exaResult = await exa.searchAndContents(params.jobTitle, {
+      exaResult = await exa.searchAndContents(params.jobTitle, {
         text: true,
         type: "auto",
         userLocation: params.userLocation,
@@ -288,7 +291,6 @@ async function executeLinkedInSearch(
       console.log("Exa result sample:", exaResult.results[0]?.author || "No results");
 
       // Store raw profiles immediately for instant results
-      const rawProfileIds: string[] = [];
       for (const rawProfile of exaResult.results) {
         try {
           console.log(`Storing raw profile: ${rawProfile.author || rawProfile.id}`);
@@ -312,7 +314,7 @@ async function executeLinkedInSearch(
     }
 
     const responseTime = Date.now() - startTime;
-    const costDollars = exaResult.costDollars?.total || 0;
+    const costDollars = exaResult?.costDollars?.total || 0;
 
     // Create result with raw profile count
     const result: LinkedInSearchResult = {
