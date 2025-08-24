@@ -14,7 +14,7 @@ import {
 const exa = new Exa(config.exa.apiKey);
 
 // AI model for LinkedIn profile parsing
-const LINKEDIN_AI_MODEL = "gpt-4.1-mini";
+const LINKEDIN_AI_MODEL = "gpt-4o-mini"; // More reliable model
 
 export interface LinkedInSearchParams {
   jobTitle: string;
@@ -288,12 +288,17 @@ async function executeLinkedInSearch(
       });
 
       console.log(`Found ${exaResult.results.length} LinkedIn profiles`);
-      console.log("Exa result sample:", exaResult.results[0]?.author || "No results");
+      console.log(
+        "Exa result sample:",
+        exaResult.results[0]?.author || "No results"
+      );
 
       // Store raw profiles immediately for instant results
       for (const rawProfile of exaResult.results) {
         try {
-          console.log(`Storing raw profile: ${rawProfile.author || rawProfile.id}`);
+          console.log(
+            `Storing raw profile: ${rawProfile.author || rawProfile.id}`
+          );
           const profileId = await storeRawLinkedInProfile(rawProfile, {
             userId: options.userId,
             searchId,
@@ -453,9 +458,13 @@ async function processProfilesWithAI(
         );
 
         // Update the stored profile with AI-processed data
-        console.log(`🔄 Calling updateLinkedInProfileWithAI for ${profileId}...`);
+        console.log(
+          `🔄 Calling updateLinkedInProfileWithAI for ${profileId}...`
+        );
         await updateLinkedInProfileWithAI(profileId, structuredProfile);
-        console.log(`✅ Database update completed for: ${structuredProfile.name}`);
+        console.log(
+          `✅ Database update completed for: ${structuredProfile.name}`
+        );
 
         console.log(`✅ AI processed profile: ${structuredProfile.name}`);
       } catch (error) {
@@ -484,7 +493,13 @@ async function parseLinkedInProfile(
     console.log(`✅ Chat model obtained successfully`);
 
     console.log(`🔄 Calling generateObject with AI model...`);
-    const result = await generateObject({
+    
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('AI processing timeout after 30 seconds')), 30000);
+    });
+    
+    const aiPromise = generateObject({
       model,
       schema: StructuredProfileSchema,
       prompt: `You are an expert LinkedIn profile analyst. Parse the following LinkedIn profile data and extract comprehensive structured information.
@@ -515,6 +530,8 @@ Please provide a comprehensive analysis with particular attention to:
 5. Leadership experience and seniority level
 6. Educational background and certifications`,
     });
+    
+    const result = await Promise.race([aiPromise, timeoutPromise]) as any;
     console.log(`✅ generateObject completed successfully`);
 
     const finalProfile = {
@@ -595,7 +612,7 @@ export async function searchLinkedInProfilesDirect(
     // Process profiles with AI in background (don't await)
     processProfilesWithAI(rawProfileIds, searchId, options).catch((error) => {
       console.error("Background AI processing failed:", error);
-    }    );
+    });
 
     result.searchId = searchId;
   } else {
