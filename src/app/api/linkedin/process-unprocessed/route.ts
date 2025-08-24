@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLinkedInProfiles, updateLinkedInProfileWithAI, getLinkedInProfile } from "@/lib/linkedin/linkedin-storage";
+import { StructuredLinkedInProfile } from "@/lib/linkedin/linkedin-storage";
+
 // Import AI processing function
-async function parseLinkedInProfile(rawData: any) {
+async function parseLinkedInProfile(rawData: any): Promise<StructuredLinkedInProfile> {
   // We need to do this inline since we can't import the function directly
   const { generateObject } = await import("ai");
   const { getChatModel } = await import("@/lib/external/openrouter");
@@ -27,8 +29,8 @@ async function parseLinkedInProfile(rawData: any) {
 Profile text: ${rawData.text}`,
   });
   
-  // Return a full structured profile
-  return {
+  // Return a full structured profile with proper types
+  const profile: StructuredLinkedInProfile = {
     name: result.object.name,
     position: result.object.position,
     company: result.object.company,
@@ -41,7 +43,7 @@ Profile text: ${rawData.text}`,
       careerHighlights: [],
       industryExpertise: [],
       yearsOfExperience: null,
-      seniorityLevel: "Mid",
+      seniorityLevel: "Mid" as "Entry" | "Mid" | "Senior" | "Lead" | "Executive" | "C-Level",
       specialisations: [],
     },
     currentJob: {
@@ -63,6 +65,8 @@ Profile text: ${rawData.text}`,
     profileUrl: rawData.url,
     lastUpdated: rawData.publishedDate || new Date().toISOString(),
   };
+  
+  return profile;
 }
 
 /**
