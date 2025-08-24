@@ -413,6 +413,8 @@ async function processProfilesWithAI(
   console.log(
     `🤖 Starting background AI processing for ${profileIds.length} profiles`
   );
+  console.log("OPENROUTER_API_KEY exists:", !!process.env.OPENROUTER_API_KEY);
+  console.log("OPENAI_API_KEY exists:", !!process.env.OPENAI_API_KEY);
 
   try {
     const { getLinkedInProfile, updateLinkedInProfileWithAI } = await import(
@@ -581,9 +583,11 @@ export async function searchLinkedInProfilesDirect(
     // Process profiles with AI in background (don't await)
     processProfilesWithAI(rawProfileIds, searchId, options).catch((error) => {
       console.error("Background AI processing failed:", error);
-    });
+    }    );
 
     result.searchId = searchId;
+  } else {
+    console.log("⚠️ Skipping AI processing - storeResult is false");
   }
 
   return result;
