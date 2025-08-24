@@ -575,12 +575,12 @@ export const processUnprocessedLinkedInProfiles = internalMutation({
       `🔄 Cron job: Looking for unprocessed LinkedIn profiles (batch size: ${batchSize})`
     );
 
-    // Query for unprocessed profiles that have raw data
+    // Query for unprocessed profiles that have raw data (only process "false" status, not "pending")
     const unprocessedProfiles = await ctx.db
       .query("linkedinProfiles")
       .filter((q) =>
         q.and(
-          q.eq(q.field("isProcessed"), false),
+          q.eq(q.field("isProcessed"), "false"),
           q.neq(q.field("rawData"), null)
         )
       )
@@ -607,6 +607,12 @@ export const processUnprocessedLinkedInProfiles = internalMutation({
         console.log(
           `🔄 Processing profile: ${profile.author} (${profile.url})`
         );
+
+        // Mark the profile as pending before scheduling AI processing
+        await ctx.db.patch(profile._id, {
+          isProcessed: "pending",
+          updatedAt: Date.now(),
+        });
 
         // Schedule the AI processing action to run
         await ctx.scheduler.runAfter(
@@ -742,7 +748,7 @@ export const updateLinkedInProfileWithAIData = internalMutation({
   handler: async (ctx, args) => {
     await ctx.db.patch(args.profileId, {
       aiData: args.aiData,
-      isProcessed: true,
+      isProcessed: "true",
       updatedAt: Date.now(),
     });
   },
@@ -757,6 +763,7 @@ export const markLinkedInProfileError = internalMutation({
   handler: async (ctx, args) => {
     await ctx.db.patch(args.profileId, {
       processingError: args.error,
+      isProcessed: "false", // Reset to false so it can be retried
       updatedAt: Date.now(),
     });
   },

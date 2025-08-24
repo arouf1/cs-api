@@ -107,7 +107,7 @@ export default defineSchema({
     text: v.optional(v.string()), // Raw text content from Exa
 
     // Processing status
-    isProcessed: v.optional(v.boolean()), // Whether AI processing is complete
+    isProcessed: v.optional(v.union(v.literal("false"), v.literal("pending"), v.literal("true"))), // AI processing status: false (unprocessed), pending (queued), true (complete)
     rawData: v.optional(v.any()), // Raw profile data from Exa for AI processing
 
     // Embeddings for semantic search

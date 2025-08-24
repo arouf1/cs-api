@@ -402,7 +402,7 @@ async function storeRawLinkedInProfile(
   const { storeLinkedInProfile } = await import("./linkedin-storage");
   return await storeLinkedInProfile(basicProfile, {
     ...options,
-    isProcessed: false, // Mark as unprocessed
+    isProcessed: "false", // Mark as unprocessed
     rawData: rawProfile, // Store raw data for AI processing
   });
 }

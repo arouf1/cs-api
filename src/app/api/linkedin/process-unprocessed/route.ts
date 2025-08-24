@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
       
       for (const profileId of specificProfileIds) {
         const profile = await getLinkedInProfile(profileId);
-        if (profile && !profile.isProcessed && profile.rawData) {
+        if (profile && profile.isProcessed !== "true" && profile.rawData) {
           profilesToProcess.push(profile);
         }
       }
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
 
       // Filter to only unprocessed profiles with raw data
       profilesToProcess = unprocessedProfiles.filter(
-        (p) => !p.isProcessed && p.rawData
+        (p) => p.isProcessed !== "true" && p.rawData
       );
     }
 

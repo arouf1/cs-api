@@ -158,7 +158,7 @@ export async function storeLinkedInProfile(
     const text = options.rawData?.text;
 
     // Only generate embeddings for processed profiles (to save costs)
-    if (options.isProcessed !== false) {
+    if (options.isProcessed === "true") {
       // Prepare text for embedding
       embeddingText = [
         `Name: ${profile.name}`,
@@ -192,7 +192,7 @@ export async function storeLinkedInProfile(
 
         // Profile data
         aiData: profile,
-        isProcessed: options.isProcessed ?? true,
+        isProcessed: options.isProcessed ?? "true",
         rawData: options.rawData,
         embedding,
         embeddingText: embeddingText
