@@ -39,6 +39,9 @@ export default defineSchema({
     descriptionEmbedding: v.optional(v.array(v.number())), // Vector embedding of the research content/data
     combinedEmbedding: v.optional(v.array(v.number())), // Vector embedding of the combined research content
     embeddingText: v.optional(v.string()), // The text that was embedded (for reference)
+    
+    // Legacy field - will be removed after migration
+    embedding: v.optional(v.array(v.number())), // DEPRECATED: Old single embedding field
 
     // Metadata
     userId: v.optional(v.string()),
@@ -119,6 +122,9 @@ export default defineSchema({
     descriptionEmbedding: v.optional(v.array(v.number())), // Vector embedding of the profile description/bio
     combinedEmbedding: v.optional(v.array(v.number())), // Vector embedding of the combined profile content
     embeddingText: v.optional(v.string()), // The text that was embedded (for reference)
+    
+    // Legacy field - will be removed after migration
+    embedding: v.optional(v.array(v.number())), // DEPRECATED: Old single embedding field
 
     // Extracted profile data from rawData.text
     profileLocation: v.optional(v.string()), // Extracted location from "Location: ..." in profile text
@@ -221,6 +227,9 @@ export default defineSchema({
     descriptionEmbedding: v.optional(v.array(v.number())), // Vector embedding of the job description
     combinedEmbedding: v.optional(v.array(v.number())), // Vector embedding of the combined job content
     embeddingText: v.optional(v.string()), // The text that was embedded (for reference)
+    
+    // Legacy field - will be removed after migration
+    embedding: v.optional(v.array(v.number())), // DEPRECATED: Old single embedding field
 
     // Extracted job data for filtering
     jobType: v.optional(v.string()), // "Full-time", "Part-time", "Contract", etc.
