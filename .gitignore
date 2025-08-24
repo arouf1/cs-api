@@ -39,3 +39,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# IDE
+.cursor/
+.vscode/
+.idea/
+
+# Convex
+# Note: convex/_generated/ should be committed for deployment
+# but you might want to add specific files if needed
+
+# Logs
+logs
+*.log
