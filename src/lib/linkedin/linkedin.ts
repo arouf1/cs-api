@@ -273,31 +273,42 @@ async function executeLinkedInSearch(
 
     // Search LinkedIn profiles using Exa
     console.log("Searching LinkedIn profiles with params:", params);
+    console.log("EXA_API_KEY exists:", !!process.env.EXA_API_KEY);
 
-    const exaResult = await exa.searchAndContents(params.jobTitle, {
-      text: true,
-      type: "auto",
-      userLocation: params.userLocation,
-      category: "linkedin profile",
-      numResults: params.numResults,
-    });
+    try {
+      const exaResult = await exa.searchAndContents(params.jobTitle, {
+        text: true,
+        type: "auto",
+        userLocation: params.userLocation,
+        category: "linkedin profile",
+        numResults: params.numResults,
+      });
 
-    console.log(`Found ${exaResult.results.length} LinkedIn profiles`);
+      console.log(`Found ${exaResult.results.length} LinkedIn profiles`);
+      console.log("Exa result sample:", exaResult.results[0]?.author || "No results");
 
-    // Store raw profiles immediately for instant results
-    const rawProfileIds: string[] = [];
-    for (const rawProfile of exaResult.results) {
-      try {
-        const profileId = await storeRawLinkedInProfile(rawProfile, {
-          userId: options.userId,
-          searchId,
-          userLocation: params.userLocation,
-        });
-        rawProfileIds.push(profileId);
-      } catch (error) {
-        console.error(`Failed to store raw profile ${rawProfile.id}:`, error);
-        // Continue with other profiles
+      // Store raw profiles immediately for instant results
+      const rawProfileIds: string[] = [];
+      for (const rawProfile of exaResult.results) {
+        try {
+          console.log(`Storing raw profile: ${rawProfile.author || rawProfile.id}`);
+          const profileId = await storeRawLinkedInProfile(rawProfile, {
+            userId: options.userId,
+            searchId,
+            userLocation: params.userLocation,
+          });
+          rawProfileIds.push(profileId);
+          console.log(`Stored profile with ID: ${profileId}`);
+        } catch (error) {
+          console.error(`Failed to store raw profile ${rawProfile.id}:`, error);
+          // Continue with other profiles
+        }
       }
+
+      console.log(`Successfully stored ${rawProfileIds.length} profiles`);
+    } catch (exaError) {
+      console.error("Exa API call failed:", exaError);
+      throw exaError;
     }
 
     const responseTime = Date.now() - startTime;
