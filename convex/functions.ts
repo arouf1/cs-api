@@ -1777,5 +1777,3 @@ export const markProfileForProcessing = internalMutation({
     console.log(`✅ Marked profile ${args.profileId} for AI processing`);
   },
 });
-
-

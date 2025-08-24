@@ -40,7 +40,7 @@ export interface StoredLinkedInProfile {
 
   // Profile data
   aiData: StructuredLinkedInProfile;
-  isProcessed?: boolean;
+  isProcessed?: "false" | "pending" | "true";
   rawData?: any;
   embedding?: number[];
   embeddingText?: string;
@@ -138,7 +138,7 @@ export async function storeLinkedInProfile(
     userId?: string;
     searchId?: string;
     userLocation?: string;
-    isProcessed?: boolean;
+    isProcessed?: "false" | "pending" | "true";
     rawData?: any;
   } = {}
 ): Promise<string> {
